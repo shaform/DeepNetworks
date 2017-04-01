@@ -307,14 +307,11 @@ class ACGAN(Model):
         self.d_c_loss_real_sum = tf.summary.scalar('d_c_loss_real',
                                                    self.d_c_loss_real)
 
-        self.g_sum = tf.summary.merge([
-            self.z_sum, self.c_sum, self.d_fake_sum, self.d_c_fake_sum,
-            self.g_sum, self.g_loss_sum, self.g_c_loss_sum
-        ])
-        self.d_sum = tf.summary.merge([
-            self.z_sum, self.d_real_sum, self.d_fake_sum, self.d_c_real_sum,
-            self.d_loss_real_sum, self.d_loss_fake_sum, self.d_loss_sum,
-            self.d_c_loss_real_sum, self.d_c_loss_sum
+        self.summary = tf.summary.merge([
+            self.z_sum, self.c_sum, self.d_real_sum, self.d_fake_sum,
+            self.d_c_real_sum, self.d_c_fake_sum, self.d_loss_real_sum,
+            self.d_loss_fake_sum, self.d_loss_sum, self.d_c_loss_real_sum,
+            self.d_c_loss_sum, self.g_sum, self.g_loss_sum, self.g_c_loss_sum
         ])
 
     def _build_optimizer(self, scope):
@@ -371,28 +368,18 @@ class ACGAN(Model):
                 epoch_d_c_loss_real = []
                 epoch_d_c_accuracy_real = []
                 for idx in range(start_idx, num_batches):
-                    # Update discriminator
-                    _, d_loss_fake, d_loss_real, d_c_loss_real, d_c_accuracy_real, summary_str = self.sess.run(
+                    _, _, d_loss_fake, d_loss_real, d_c_loss_real, d_c_accuracy_real, g_loss, g_c_loss, g_c_accuracy, summary_str = self.sess.run(
                         [
-                            self.d_optim, self.d_loss_fake, self.d_loss_real,
-                            self.d_c_loss_real, self.d_c_accuracy_real,
-                            self.d_sum
+                            self.d_optim, self.g_optim, self.d_loss_fake,
+                            self.d_loss_real, self.d_c_loss_real,
+                            self.d_c_accuracy_real, self.g_loss, self.g_c_loss,
+                            self.g_c_accuracy, self.summary
                         ],
                         feed_dict={self.is_training: True})
                     epoch_d_loss_fake.append(d_loss_fake)
                     epoch_d_loss_real.append(d_loss_real)
                     epoch_d_c_loss_real.append(d_c_loss_real)
                     epoch_d_c_accuracy_real.append(d_c_accuracy_real)
-                    if self.writer:
-                        self.writer.add_summary(summary_str, step)
-
-                    # Update generator
-                    _, g_loss, g_c_loss, g_c_accuracy, summary_str = self.sess.run(
-                        [
-                            self.g_optim, self.g_loss, self.g_c_loss,
-                            self.g_c_accuracy, self.g_sum
-                        ],
-                        feed_dict={self.is_training: True})
                     epoch_g_loss.append(g_loss)
                     epoch_g_c_loss.append(g_c_loss)
                     epoch_g_c_accuracy.append(g_c_accuracy)

@@ -232,11 +232,9 @@ class GAN(Model):
         self.d_loss_fake_sum = tf.summary.scalar('d_loss_fake',
                                                  self.d_loss_fake)
 
-        self.g_sum = tf.summary.merge(
-            [self.z_sum, self.d_fake_sum, self.g_sum, self.g_loss_sum])
-        self.d_sum = tf.summary.merge([
+        self.summary = tf.summary.merge([
             self.z_sum, self.d_real_sum, self.d_fake_sum, self.d_loss_real_sum,
-            self.d_loss_fake_sum, self.d_loss_sum
+            self.d_loss_fake_sum, self.d_loss_sum, self.g_sum, self.g_loss_sum
         ])
 
     def _build_optimizer(self, scope):
@@ -289,22 +287,14 @@ class GAN(Model):
                 epoch_d_loss_fake = []
                 epoch_d_loss_real = []
                 for idx in range(start_idx, num_batches):
-                    # Update discriminator
-                    _, d_loss_fake, d_loss_real, summary_str = self.sess.run(
+                    _, _, d_loss_fake, d_loss_real, g_loss, summary_str = self.sess.run(
                         [
-                            self.d_optim, self.d_loss_fake, self.d_loss_real,
-                            self.d_sum
+                            self.d_optim, self.g_optim, self.d_loss_fake,
+                            self.d_loss_real, self.g_loss, self.summary
                         ],
                         feed_dict={self.is_training: True})
                     epoch_d_loss_fake.append(d_loss_fake)
                     epoch_d_loss_real.append(d_loss_real)
-                    if self.writer:
-                        self.writer.add_summary(summary_str, step)
-
-                    # Update generator
-                    _, g_loss, summary_str = self.sess.run(
-                        [self.g_optim, self.g_loss, self.g_sum],
-                        feed_dict={self.is_training: True})
                     epoch_g_loss.append(g_loss)
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
