@@ -277,8 +277,12 @@ class WGAN(Model):
                              sample_step, int) and step in sample_step)):
                         sample_fn(self, step)
 
-                t.set_postfix(
-                    g_loss=np.mean(epoch_g_loss), d_loss=np.mean(epoch_d_loss))
+                postfix = {}
+                if len(epoch_g_loss) > 0:
+                    postfix['g_loss'] = np.mean(epoch_g_loss)
+                if len(epoch_d_loss) > 0:
+                    postfix['d_loss'] = np.mean(epoch_d_loss)
+                t.set_postfix(**postfix)
 
     def sample(self, num_samples=None, z=None):
         if z is not None:
