@@ -107,13 +107,12 @@ class WGAN(Model):
         self.d_loss_fake = tf.reduce_mean(self.d_logits_fake)
         self.d_loss = self.d_loss_real - self.d_loss_fake
 
-        self.g_vars = []
-        self.d_vars = []
-        for var in tf.trainable_variables():
-            if self._is_component('generator', var.name):
-                self.g_vars.append(var)
-            elif self._is_component('discriminator', var.name):
-                self.d_vars.append(var)
+        with tf.variable_scope('generator') as scope:
+            self.g_vars = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
+        with tf.variable_scope('discriminator') as scope:
+            self.d_vars = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
 
         self.z_sampler = tf.placeholder(
             tf.float32, [None, self.z_dim], name='z_sampler')
@@ -299,7 +298,3 @@ class WGAN(Model):
 
     def sample_z(self, num_samples):
         return np.random.normal(0.0, self.z_stddev, (num_samples, self.z_dim))
-
-    def _is_component(self, component, name):
-        prefix = self.name + '/' + component + '/'
-        return prefix in name

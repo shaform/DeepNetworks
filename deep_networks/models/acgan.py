@@ -224,11 +224,11 @@ class ACGAN(Model):
             tf.nn.softmax_cross_entropy_with_logits(
                 logits=self.d_c_logits_fake,
                 labels=tf.one_hot(self.c, depth=self.num_classes, axis=-1)))
-        self.g_reg_loss = tf.add_n([
-            var
-            for var in tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-            if self._is_component('generator', var.name)
-        ])
+
+        with tf.variable_scope('generator') as scope:
+            self.g_reg_loss = tf.add_n(
+                tf.get_collection(
+                    tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name))
 
         correct_prediction = tf.equal(self.c, tf.argmax(self.d_c_fake, 1))
         self.g_c_accuracy = tf.reduce_mean(
@@ -262,13 +262,12 @@ class ACGAN(Model):
             tf.cast(correct_prediction_real, tf.float32))
         self.d_c_loss = self.d_c_loss_real
 
-        self.g_vars = []
-        self.d_vars = []
-        for var in tf.trainable_variables():
-            if self._is_component('generator', var.name):
-                self.g_vars.append(var)
-            elif self._is_component('discriminator', var.name):
-                self.d_vars.append(var)
+        with tf.variable_scope('generator') as scope:
+            self.g_vars = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
+        with tf.variable_scope('discriminator') as scope:
+            self.d_vars = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
 
         self.z_sampler = tf.placeholder(
             tf.float32, [None, self.z_dim], name='z_sampler')
@@ -438,7 +437,3 @@ class ACGAN(Model):
 
     def sample_c(self, num_samples):
         return np.random.randint(self.num_classes, size=(num_samples, ))
-
-    def _is_component(self, component, name):
-        prefix = self.name + '/' + component + '/'
-        return prefix in name
