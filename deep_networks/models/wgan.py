@@ -274,7 +274,8 @@ class WGAN(Model):
                     # Sample
                     if sample_fn and sample_step and (
                         (isinstance(sample_step, int) and
-                         step % sample_step == 0) or step in sample_step):
+                         step % sample_step == 0) or (not isinstance(
+                             sample_step, int) and step in sample_step)):
                         sample_fn(self, step)
 
                 t.set_postfix(
