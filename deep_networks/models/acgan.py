@@ -50,6 +50,7 @@ def build_basic_generator(z,
                     'updates_collections': update_ops,
                 },
                 weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer(),
                 scope='g_fc{}'.format(i + 1))
         fc = tf.contrib.layers.fully_connected(
             inputs=fc,
@@ -57,6 +58,7 @@ def build_basic_generator(z,
             reuse=reuse,
             activation_fn=activation_fn,
             weights_initializer=initializer,
+            biases_initializer=tf.zeros_initializer(),
             scope='g_fc{}'.format(num_layers))
         return fc, codes
 
@@ -93,6 +95,7 @@ def build_basic_discriminator(X,
                 normalizer_fn=normalizer_fn,
                 normalizer_params=normalizer_params,
                 weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer(),
                 scope='d_fc{}'.format(i))
         fc_d = tf.contrib.layers.fully_connected(
             inputs=fc,
@@ -100,6 +103,7 @@ def build_basic_discriminator(X,
             reuse=reuse,
             activation_fn=None,
             weights_initializer=initializer,
+            biases_initializer=tf.zeros_initializer(),
             scope='d_fc{}'.format(num_layers))
         act_d = activation_fn(fc_d) if activation_fn else fc_d
 
@@ -109,6 +113,7 @@ def build_basic_discriminator(X,
             reuse=reuse,
             activation_fn=None,
             weights_initializer=initializer,
+            biases_initializer=tf.zeros_initializer(),
             scope='d_fc_c')
         act_c = class_activation_fn(fc_c) if class_activation_fn else fc_c
         return act_d, fc_d, act_c, fc_c
@@ -383,9 +388,9 @@ class ACGAN(Model):
                     epoch_g_loss.append(g_loss)
                     epoch_g_c_loss.append(g_c_loss)
                     epoch_g_c_accuracy.append(g_c_accuracy)
+
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
-
                     step += 1
 
                     # Save checkpoint

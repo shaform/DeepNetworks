@@ -42,6 +42,7 @@ def build_basic_generator(z,
                     'updates_collections': update_ops,
                 },
                 weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer(),
                 scope='g_fc{}'.format(i + 1))
         fc = tf.contrib.layers.fully_connected(
             inputs=fc,
@@ -49,6 +50,7 @@ def build_basic_generator(z,
             reuse=reuse,
             activation_fn=activation_fn,
             weights_initializer=initializer,
+            biases_initializer=tf.zeros_initializer(),
             scope='g_fc{}'.format(num_layers))
         return fc
 
@@ -83,6 +85,7 @@ def build_basic_discriminator(X,
                 normalizer_fn=normalizer_fn,
                 normalizer_params=normalizer_params,
                 weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer(),
                 scope='d_fc{}'.format(i))
         fc = tf.contrib.layers.fully_connected(
             inputs=fc,
@@ -90,6 +93,7 @@ def build_basic_discriminator(X,
             reuse=reuse,
             activation_fn=None,
             weights_initializer=initializer,
+            biases_initializer=tf.zeros_initializer(),
             scope='d_fc{}'.format(num_layers))
         act = activation_fn(fc) if activation_fn else fc
         return act, fc
@@ -296,9 +300,9 @@ class GAN(Model):
                     epoch_d_loss_fake.append(d_loss_fake)
                     epoch_d_loss_real.append(d_loss_real)
                     epoch_g_loss.append(g_loss)
+
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
-
                     step += 1
 
                     # Save checkpoint
