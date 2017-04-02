@@ -21,6 +21,7 @@ def build_basic_generator(z,
                           stddev=0.02,
                           dim=128,
                           num_layers=3,
+                          skip_first_batch=False,
                           activation_fn=None):
     assert num_layers > 0
     output_size = functools.reduce(operator.mul, output_shape)
@@ -29,18 +30,20 @@ def build_basic_generator(z,
     with tf.variable_scope(name, reuse=reuse):
         fc = z
         for i in range(num_layers - 1):
+            normalizer_fn = tf.contrib.layers.batch_norm if not skip_first_batch or i != 0 else None
+            normalizer_params = {
+                'scope': 'g_fc{}_bn'.format(i),
+                'is_training': is_training,
+                'updates_collections': update_ops,
+                'reuse': reuse
+            } if not skip_first_batch or i != 0 else None
             fc = tf.contrib.layers.fully_connected(
                 inputs=fc,
                 num_outputs=dim,
                 reuse=reuse,
                 activation_fn=tf.nn.relu,
-                normalizer_fn=tf.contrib.layers.batch_norm,
-                normalizer_params={
-                    'is_training': is_training,
-                    'reuse': reuse,
-                    'scope': 'g_fc{}_bn'.format(i),
-                    'updates_collections': update_ops,
-                },
+                normalizer_fn=normalizer_fn,
+                normalizer_params=normalizer_params,
                 weights_initializer=initializer,
                 biases_initializer=tf.zeros_initializer(),
                 scope='g_fc{}'.format(i + 1))
@@ -251,7 +254,7 @@ class GAN(Model):
                 self.g_learning_rate, beta1=self.g_beta1).minimize(
                     g_total_loss, var_list=self.g_vars)
 
-        update_ops_d = tf.get_collection(self.update_ops_g, scope=scope.name)
+        update_ops_d = tf.get_collection(self.update_ops_d, scope=scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g):
             self.d_optim = tf.train.AdamOptimizer(
                 self.d_learning_rate, beta1=self.d_beta1).minimize(

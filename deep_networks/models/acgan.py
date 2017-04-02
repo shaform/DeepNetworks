@@ -329,7 +329,7 @@ class ACGAN(Model):
                 self.g_learning_rate, beta1=self.g_beta1).minimize(
                     g_total_loss, var_list=self.g_vars)
 
-        update_ops_d = tf.get_collection(self.update_ops_g, scope=scope.name)
+        update_ops_d = tf.get_collection(self.update_ops_d, scope=scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g):
             self.d_optim = tf.train.AdamOptimizer(
                 self.d_learning_rate, beta1=self.d_beta1).minimize(

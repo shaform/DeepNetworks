@@ -161,7 +161,7 @@ class WGAN(Model):
                 tf.clip_by_value(v, self.d_clamp_lower, self.d_clamp_upper))
             for v in self.d_vars
         ]
-        update_ops_d = tf.get_collection(self.update_ops_g, scope=scope.name)
+        update_ops_d = tf.get_collection(self.update_ops_d, scope=scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g + d_clip):
             self.d_optim = tf.train.RMSPropOptimizer(
                 self.d_learning_rate).minimize(
