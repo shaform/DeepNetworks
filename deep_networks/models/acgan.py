@@ -1,3 +1,7 @@
+"""
+Auxiliary Classifier Generative Adversarial Networks
+"""
+
 import functools
 import operator
 import os
@@ -21,6 +25,7 @@ def build_basic_generator(z,
                           stddev=0.02,
                           dim=128,
                           num_layers=3,
+                          skip_first_batch=False,
                           activation_fn=None):
     assert num_layers > 0
     output_size = functools.reduce(operator.mul, output_shape)
@@ -28,37 +33,41 @@ def build_basic_generator(z,
     xavier_initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
-        codes = tf.get_variable(
-            'codes', [num_classes, z.get_shape()[1]],
-            initializer=xavier_initializer,
-            regularizer=tf.contrib.layers.l2_regularizer(0.8))
-        z_c = tf.nn.embedding_lookup(codes, c)
-        fc = tf.multiply(z, z_c)
+        with tf.variable_scope('codes'):
+            codes = tf.get_variable(
+                'codes', [num_classes, z.get_shape()[1]],
+                initializer=xavier_initializer,
+                regularizer=tf.contrib.layers.l2_regularizer(0.8))
+            z_c = tf.nn.embedding_lookup(codes, c)
+            outputs = tf.multiply(z, z_c)
+
         for i in range(num_layers - 1):
-            fc = tf.contrib.layers.fully_connected(
-                inputs=fc,
-                num_outputs=dim,
-                reuse=reuse,
-                activation_fn=tf.nn.relu,
-                normalizer_fn=tf.contrib.layers.batch_norm,
-                normalizer_params={
-                    'is_training': is_training,
-                    'reuse': reuse,
-                    'scope': 'g_fc{}_bn'.format(i),
-                    'updates_collections': updates_collections,
-                },
+            with tf.variable_scope('fc{}'.format(i + 1)):
+                if skip_first_batch and i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=dim,
+                    activation_fn=tf.nn.relu,
+                    normalizer_fn=normalizer_fn,
+                    normalizer_params=normalizer_params,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
+
+        with tf.variable_scope('fc{}'.format(num_layers)):
+            outputs = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=output_size,
+                activation_fn=activation_fn,
                 weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer(),
-                scope='g_fc{}'.format(i + 1))
-        fc = tf.contrib.layers.fully_connected(
-            inputs=fc,
-            num_outputs=output_size,
-            reuse=reuse,
-            activation_fn=activation_fn,
-            weights_initializer=initializer,
-            biases_initializer=tf.zeros_initializer(),
-            scope='g_fc{}'.format(num_layers))
-        return fc, codes
+                biases_initializer=tf.zeros_initializer())
+        return outputs, codes
 
 
 def build_basic_discriminator(X,
@@ -77,44 +86,43 @@ def build_basic_discriminator(X,
     initializer = tf.truncated_normal_initializer(stddev=stddev)
 
     with tf.variable_scope(name, reuse=reuse):
-        fc = X
+        outputs = X
         for i in range(num_layers - 1):
-            normalizer_fn = tf.contrib.layers.batch_norm if i != 0 else None
-            normalizer_params = {
-                'scope': 'd_fc{}_bn'.format(i),
-                'is_training': is_training,
-                'updates_collections': updates_collections,
-                'reuse': reuse
-            } if i != 0 else None
-            fc = tf.contrib.layers.fully_connected(
-                inputs=fc,
-                num_outputs=dim,
-                reuse=reuse,
-                activation_fn=lrelu,
-                normalizer_fn=normalizer_fn,
-                normalizer_params=normalizer_params,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer(),
-                scope='d_fc{}'.format(i))
-        fc_d = tf.contrib.layers.fully_connected(
-            inputs=fc,
-            num_outputs=1,
-            reuse=reuse,
-            activation_fn=None,
-            weights_initializer=initializer,
-            biases_initializer=tf.zeros_initializer(),
-            scope='d_fc{}'.format(num_layers))
-        act_d = activation_fn(fc_d) if activation_fn else fc_d
+            with tf.variable_scope('fc{}'.format(i + 1)):
+                if i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=dim,
+                    activation_fn=lrelu,
+                    normalizer_fn=normalizer_fn,
+                    normalizer_params=normalizer_params,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
 
-        fc_c = tf.contrib.layers.fully_connected(
-            inputs=fc,
-            num_outputs=num_classes,
-            reuse=reuse,
-            activation_fn=None,
-            weights_initializer=initializer,
-            biases_initializer=tf.zeros_initializer(),
-            scope='d_fc_c')
-        act_c = class_activation_fn(fc_c) if class_activation_fn else fc_c
+        with tf.variable_scope('fc_d'):
+            fc_d = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=1,
+                activation_fn=None,
+                weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer())
+            act_d = activation_fn(fc_d) if activation_fn else fc_d
+
+        with tf.variable_scope('fc_c'):
+            fc_c = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=num_classes,
+                activation_fn=None,
+                weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer())
+            act_c = class_activation_fn(fc_c) if class_activation_fn else fc_c
         return act_d, fc_d, act_c, fc_c
 
 
@@ -177,9 +185,9 @@ class ACGAN(Model):
                 dtype=tf.int64,
                 name='c')
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.updates_collections_noop = self.name + '/updates_collections_noop'
-            self.updates_collections_d = self.name + '/updates_collections_d'
-            self.updates_collections_g = self.name + '/updates_collections_g'
+            self.updates_collections_noop = 'updates_collections_noop'
+            self.updates_collections_d = 'updates_collections_d'
+            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -199,23 +207,25 @@ class ACGAN(Model):
             dim=self.g_dim,
             name='generator')
 
-        self.d_real, self.d_logits_real, self.d_c_real, self.d_c_logits_real = discriminator_fn(
-            self.X,
-            self.is_training,
-            self.updates_collections_d,
-            self.num_classes,
-            input_shape=self.output_shape,
-            dim=self.d_dim,
-            name='discriminator')
-        self.d_fake, self.d_logits_fake, self.d_c_fake, self.d_c_logits_fake = discriminator_fn(
-            self.g,
-            self.is_training,
-            self.updates_collections_d,
-            self.num_classes,
-            input_shape=self.output_shape,
-            dim=self.d_dim,
-            reuse=True,
-            name='discriminator')
+        (self.d_real, self.d_logits_real, self.d_c_real,
+         self.d_c_logits_real) = discriminator_fn(
+             self.X,
+             self.is_training,
+             self.updates_collections_d,
+             self.num_classes,
+             input_shape=self.output_shape,
+             dim=self.d_dim,
+             name='discriminator')
+        (self.d_fake, self.d_logits_fake, self.d_c_fake,
+         self.d_c_logits_fake) = discriminator_fn(
+             self.g,
+             self.is_training,
+             self.updates_collections_d,
+             self.num_classes,
+             input_shape=self.output_shape,
+             dim=self.d_dim,
+             reuse=True,
+             name='discriminator')
 
         self.g_loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
@@ -375,14 +385,16 @@ class ACGAN(Model):
                 epoch_d_c_loss_real = []
                 epoch_d_c_accuracy_real = []
                 for idx in range(start_idx, num_batches):
-                    _, _, d_loss_fake, d_loss_real, d_c_loss_real, d_c_accuracy_real, g_loss, g_c_loss, g_c_accuracy, summary_str = self.sess.run(
-                        [
-                            self.d_optim, self.g_optim, self.d_loss_fake,
-                            self.d_loss_real, self.d_c_loss_real,
-                            self.d_c_accuracy_real, self.g_loss, self.g_c_loss,
-                            self.g_c_accuracy, self.summary
-                        ],
-                        feed_dict={self.is_training: True})
+                    (_, _, d_loss_fake, d_loss_real, d_c_loss_real,
+                     d_c_accuracy_real, g_loss, g_c_loss, g_c_accuracy,
+                     summary_str) = self.sess.run(
+                         [
+                             self.d_optim, self.g_optim, self.d_loss_fake,
+                             self.d_loss_real, self.d_c_loss_real,
+                             self.d_c_accuracy_real, self.g_loss,
+                             self.g_c_loss, self.g_c_accuracy, self.summary
+                         ],
+                         feed_dict={self.is_training: True})
                     epoch_d_loss_fake.append(d_loss_fake)
                     epoch_d_loss_real.append(d_loss_real)
                     epoch_d_c_loss_real.append(d_c_loss_real)

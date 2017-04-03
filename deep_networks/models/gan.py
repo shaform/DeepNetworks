@@ -1,3 +1,7 @@
+"""
+Generative Adversarial Networks
+"""
+
 import functools
 import operator
 import os
@@ -26,34 +30,34 @@ def build_basic_generator(z,
     initializer = tf.truncated_normal_initializer(stddev=stddev)
 
     with tf.variable_scope(name, reuse=reuse):
-        fc = z
+        outputs = z
         for i in range(num_layers - 1):
-            normalizer_fn = tf.contrib.layers.batch_norm if not skip_first_batch or i != 0 else None
-            normalizer_params = {
-                'scope': 'g_fc{}_bn'.format(i),
-                'is_training': is_training,
-                'updates_collections': updates_collections,
-                'reuse': reuse
-            } if not skip_first_batch or i != 0 else None
-            fc = tf.contrib.layers.fully_connected(
-                inputs=fc,
-                num_outputs=dim,
-                reuse=reuse,
-                activation_fn=tf.nn.relu,
-                normalizer_fn=normalizer_fn,
-                normalizer_params=normalizer_params,
+            with tf.variable_scope('fc{}'.format(i + 1)):
+                if skip_first_batch and i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=dim,
+                    activation_fn=tf.nn.relu,
+                    normalizer_fn=normalizer_fn,
+                    normalizer_params=normalizer_params,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
+
+        with tf.variable_scope('fc{}'.format(num_layers)):
+            outputs = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=output_size,
+                activation_fn=activation_fn,
                 weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer(),
-                scope='g_fc{}'.format(i + 1))
-        fc = tf.contrib.layers.fully_connected(
-            inputs=fc,
-            num_outputs=output_size,
-            reuse=reuse,
-            activation_fn=activation_fn,
-            weights_initializer=initializer,
-            biases_initializer=tf.zeros_initializer(),
-            scope='g_fc{}'.format(num_layers))
-        return fc
+                biases_initializer=tf.zeros_initializer())
+        return outputs
 
 
 def build_basic_discriminator(X,
@@ -70,35 +74,36 @@ def build_basic_discriminator(X,
     initializer = tf.truncated_normal_initializer(stddev=stddev)
 
     with tf.variable_scope(name, reuse=reuse):
-        fc = X
+        outputs = X
         for i in range(num_layers - 1):
-            normalizer_fn = tf.contrib.layers.batch_norm if i != 0 else None
-            normalizer_params = {
-                'scope': 'd_fc{}_bn'.format(i),
-                'is_training': is_training,
-                'updates_collections': updates_collections,
-                'reuse': reuse
-            } if i != 0 else None
-            fc = tf.contrib.layers.fully_connected(
-                inputs=fc,
-                num_outputs=dim,
-                reuse=reuse,
-                activation_fn=lrelu,
-                normalizer_fn=normalizer_fn,
-                normalizer_params=normalizer_params,
+            with tf.variable_scope('fc{}'.format(i + 1)):
+                if i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=dim,
+                    activation_fn=lrelu,
+                    normalizer_fn=normalizer_fn,
+                    normalizer_params=normalizer_params,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
+
+        with tf.variable_scope('fc{}'.format(num_layers)):
+            outputs = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=1,
+                activation_fn=None,
                 weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer(),
-                scope='d_fc{}'.format(i))
-        fc = tf.contrib.layers.fully_connected(
-            inputs=fc,
-            num_outputs=1,
-            reuse=reuse,
-            activation_fn=None,
-            weights_initializer=initializer,
-            biases_initializer=tf.zeros_initializer(),
-            scope='d_fc{}'.format(num_layers))
-        act = activation_fn(fc) if activation_fn else fc
-        return act, fc
+                biases_initializer=tf.zeros_initializer())
+            act = activation_fn(outputs) if activation_fn else outputs
+
+        return act, outputs
 
 
 class GAN(Model):
@@ -150,9 +155,9 @@ class GAN(Model):
                 name='z',
                 dtype=tf.float32)
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.updates_collections_noop = self.name + '/updates_collections_noop'
-            self.updates_collections_d = self.name + '/updates_collections_d'
-            self.updates_collections_g = self.name + '/updates_collections_g'
+            self.updates_collections_noop = 'updates_collections_noop'
+            self.updates_collections_d = 'updates_collections_d'
+            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -296,12 +301,13 @@ class GAN(Model):
                 epoch_d_loss_fake = []
                 epoch_d_loss_real = []
                 for idx in range(start_idx, num_batches):
-                    _, _, d_loss_fake, d_loss_real, g_loss, summary_str = self.sess.run(
-                        [
-                            self.d_optim, self.g_optim, self.d_loss_fake,
-                            self.d_loss_real, self.g_loss, self.summary
-                        ],
-                        feed_dict={self.is_training: True})
+                    (_, _, d_loss_fake, d_loss_real, g_loss,
+                     summary_str) = self.sess.run(
+                         [
+                             self.d_optim, self.g_optim, self.d_loss_fake,
+                             self.d_loss_real, self.g_loss, self.summary
+                         ],
+                         feed_dict={self.is_training: True})
                     epoch_d_loss_fake.append(d_loss_fake)
                     epoch_d_loss_real.append(d_loss_real)
                     epoch_g_loss.append(g_loss)

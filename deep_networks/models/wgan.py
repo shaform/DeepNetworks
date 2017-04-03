@@ -1,3 +1,7 @@
+"""
+Wasserstein Generative Adversarial Networks
+"""
+
 import os
 import time
 
@@ -63,9 +67,9 @@ class WGAN(Model):
                 name='z',
                 dtype=tf.float32)
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.updates_collections_noop = self.name + '/updates_collections_noop'
-            self.updates_collections_d = self.name + '/updates_collections_d'
-            self.updates_collections_g = self.name + '/updates_collections_g'
+            self.updates_collections_noop = 'updates_collections_noop'
+            self.updates_collections_d = 'updates_collections_d'
+            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -233,7 +237,8 @@ class WGAN(Model):
                 #
                 # gen_iterations = 0
                 # while True:
-                #    if gen_iterations < self.d_intial_high_rounds or gen_iterations % self.d_step_high_rounds == 0:
+                #    if (gen_iterations < self.d_intial_high_rounds or
+                #        gen_iterations % self.d_step_high_rounds == 0):
                 #        d_iters = self.d_high_iters
                 #    else:
                 #        d_iters = self.d_iters

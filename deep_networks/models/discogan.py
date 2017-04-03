@@ -52,9 +52,9 @@ class DiscoGAN(Model):
             self.X = X_real
             self.Y = Y_real
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.updates_collections_noop = self.name + '/updates_collections_noop'
-            self.updates_collections_d = self.name + '/updates_collections_d'
-            self.updates_collections_g = self.name + '/updates_collections_g'
+            self.updates_collections_noop = 'updates_collections_noop'
+            self.updates_collections_d = 'updates_collections_d'
+            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
