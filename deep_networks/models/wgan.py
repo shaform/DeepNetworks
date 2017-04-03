@@ -133,7 +133,7 @@ class WGAN(Model):
         self.z_sum = tf.summary.histogram('z', self.z)
         if self.image_summary:
             self.g_sum = tf.summary.image(
-                'g', tf.reshape(self.g, (-1, ) + self.ouput_shape))
+                'g', tf.reshape(self.g, (-1, ) + self.output_shape))
         else:
             self.g_sum = tf.summary.histogram('g', self.g)
         self.d_real_sum = tf.summary.histogram('d_real', self.d_real)
@@ -203,10 +203,10 @@ class WGAN(Model):
             # steps to free from initial steps
             passing_steps = initial_steps + (
                 (self.d_step_high_rounds -
-                 (self.d_intial_high_rounds % self.d_step_high_rounds
-                  )) % self.d_step_high_rounds) * self.d_iters
-            block_steps = self.d_high_iters + (self.d_step_high_rounds - 1
-                                               ) * self.d_iters
+                 (self.d_intial_high_rounds % self.d_step_high_rounds)
+                 ) % self.d_step_high_rounds) * self.d_iters
+            block_steps = self.d_high_iters + (
+                self.d_step_high_rounds - 1) * self.d_iters
             t = self._trange(start_epoch, num_epochs)
             for epoch in t:
                 start_idx = step % num_batches
@@ -280,8 +280,9 @@ class WGAN(Model):
                     # Sample
                     if sample_fn and sample_step and (
                         (isinstance(sample_step, int) and
-                         step % sample_step == 0) or (not isinstance(
-                             sample_step, int) and step in sample_step)):
+                         step % sample_step == 0) or
+                        (not isinstance(sample_step, int) and
+                         step in sample_step)):
                         sample_fn(self, step)
 
                 postfix = {}

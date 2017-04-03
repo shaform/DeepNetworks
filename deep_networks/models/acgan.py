@@ -302,7 +302,7 @@ class ACGAN(Model):
         self.c_sum = tf.summary.histogram('c', self.c)
         if self.image_summary:
             self.g_sum = tf.summary.image(
-                'g', tf.reshape(self.g, (-1, ) + self.ouput_shape))
+                'g', tf.reshape(self.g, (-1, ) + self.output_shape))
         else:
             self.g_sum = tf.summary.histogram('g', self.g)
         self.d_real_sum = tf.summary.histogram('d_real', self.d_real)
@@ -414,8 +414,9 @@ class ACGAN(Model):
                     # Sample
                     if sample_fn and sample_step and (
                         (isinstance(sample_step, int) and
-                         step % sample_step == 0) or (not isinstance(
-                             sample_step, int) and step in sample_step)):
+                         step % sample_step == 0) or
+                        (not isinstance(sample_step, int) and
+                         step in sample_step)):
                         sample_fn(self, step)
 
                 t.set_postfix(

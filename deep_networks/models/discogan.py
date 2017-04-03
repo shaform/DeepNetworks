@@ -227,19 +227,19 @@ class DiscoGAN(Model):
     def _build_summary(self):
         if self.image_summary:
             self.x_sum = tf.summary.image(
-                'x', tf.reshape(self.X, (-1, ) + self.x_ouput_shape))
+                'x', tf.reshape(self.X, (-1, ) + self.x_output_shape))
             self.y_sum = tf.summary.image(
-                'y', tf.reshape(self.Y, (-1, ) + self.y_ouput_shape))
+                'y', tf.reshape(self.Y, (-1, ) + self.y_output_shape))
             self.x_g_sum = tf.summary.image(
-                'x_g', tf.reshape(self.x_g, (-1, ) + self.x_ouput_shape))
+                'x_g', tf.reshape(self.x_g, (-1, ) + self.x_output_shape))
             self.y_g_sum = tf.summary.image(
-                'y_g', tf.reshape(self.y_g, (-1, ) + self.y_ouput_shape))
+                'y_g', tf.reshape(self.y_g, (-1, ) + self.y_output_shape))
             self.x_g_recon_sum = tf.summary.image(
                 'x_g_recon',
-                tf.reshape(self.x_g_recon, (-1, ) + self.x_ouput_shape))
+                tf.reshape(self.x_g_recon, (-1, ) + self.x_output_shape))
             self.y_g_recon_sum = tf.summary.image(
                 'y_g_recon',
-                tf.reshape(self.y_g_recon, (-1, ) + self.y_ouput_shape))
+                tf.reshape(self.y_g_recon, (-1, ) + self.y_output_shape))
         else:
             self.x_sum = tf.summary.histogram('x', self.X)
             self.y_sum = tf.summary.histogram('y', self.Y)
@@ -335,8 +335,9 @@ class DiscoGAN(Model):
                     # Sample
                     if sample_fn and sample_step and (
                         (isinstance(sample_step, int) and
-                         step % sample_step == 0) or (not isinstance(
-                             sample_step, int) and step in sample_step)):
+                         step % sample_step == 0) or
+                        (not isinstance(sample_step, int) and
+                         step in sample_step)):
                         sample_fn(self, step)
 
                 t.set_postfix(

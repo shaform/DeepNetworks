@@ -9,6 +9,7 @@ class Model(object):
     def __init__(self, sess, name):
         self.name = name
         self.sess = sess
+        self.saver = None
         self._trange = trange
 
     def save(self, checkpoint_dir, step):
