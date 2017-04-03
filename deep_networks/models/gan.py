@@ -61,6 +61,7 @@ def build_basic_generator(z,
 def build_basic_discriminator(X,
                               is_training,
                               update_ops,
+                              input_shape=None,
                               name='discriminator',
                               reuse=False,
                               stddev=0.02,
@@ -175,12 +176,14 @@ class GAN(Model):
             self.X,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             name='discriminator')
         self.d_fake, self.d_logits_fake = discriminator_fn(
             self.g,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             reuse=True,
             name='discriminator')
@@ -224,8 +227,8 @@ class GAN(Model):
     def _build_summary(self):
         self.z_sum = tf.summary.histogram('z', self.z)
         if self.image_summary:
-            self.g_sum = tf.summary.image('g',
-                                          tf.reshape(self.g, self.ouput_shape))
+            self.g_sum = tf.summary.image(
+                'g', tf.reshape(self.g, (-1, ) + self.ouput_shape))
         else:
             self.g_sum = tf.summary.histogram('g', self.g)
         self.d_real_sum = tf.summary.histogram('d_real', self.d_real)

@@ -106,12 +106,14 @@ class DiscoGAN(Model):
             self.X,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.x_output_shape,
             dim=self.d_dim,
             name='x_discriminator')
         self.y_d_real, self.y_d_logits_real = discriminator_fn(
             self.Y,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.y_output_shape,
             dim=self.d_dim,
             name='y_discriminator')
 
@@ -119,6 +121,7 @@ class DiscoGAN(Model):
             self.x_g,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.x_output_shape,
             dim=self.d_dim,
             reuse=True,
             name='x_discriminator')
@@ -126,6 +129,7 @@ class DiscoGAN(Model):
             self.y_g,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.y_output_shape,
             dim=self.d_dim,
             reuse=True,
             name='y_discriminator')
@@ -225,17 +229,19 @@ class DiscoGAN(Model):
     def _build_summary(self):
         if self.image_summary:
             self.x_sum = tf.summary.image(
-                'x', tf.reshape(self.X, self.x_ouput_shape))
+                'x', tf.reshape(self.X, (-1, ) + self.x_ouput_shape))
             self.y_sum = tf.summary.image(
-                'y', tf.reshape(self.Y, self.y_ouput_shape))
+                'y', tf.reshape(self.Y, (-1, ) + self.y_ouput_shape))
             self.x_g_sum = tf.summary.image(
-                'x_g', tf.reshape(self.x_g, self.x_ouput_shape))
+                'x_g', tf.reshape(self.x_g, (-1, ) + self.x_ouput_shape))
             self.y_g_sum = tf.summary.image(
-                'y_g', tf.reshape(self.y_g, self.y_ouput_shape))
+                'y_g', tf.reshape(self.y_g, (-1, ) + self.y_ouput_shape))
             self.x_g_recon_sum = tf.summary.image(
-                'x_g_recon', tf.reshape(self.x_g_recon, self.x_ouput_shape))
+                'x_g_recon',
+                tf.reshape(self.x_g_recon, (-1, ) + self.x_ouput_shape))
             self.y_g_recon_sum = tf.summary.image(
-                'y_g_recon', tf.reshape(self.y_g_recon, self.y_ouput_shape))
+                'y_g_recon',
+                tf.reshape(self.y_g_recon, (-1, ) + self.y_ouput_shape))
         else:
             self.x_sum = tf.summary.histogram('x', self.X)
             self.y_sum = tf.summary.histogram('y', self.Y)

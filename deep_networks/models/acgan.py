@@ -67,6 +67,7 @@ def build_basic_discriminator(X,
                               is_training,
                               update_ops,
                               num_classes,
+                              input_shape=None,
                               name='discriminator',
                               reuse=False,
                               stddev=0.02,
@@ -205,6 +206,7 @@ class ACGAN(Model):
             self.is_training,
             self.update_ops_d,
             self.num_classes,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             name='discriminator')
         self.d_fake, self.d_logits_fake, self.d_c_fake, self.d_c_logits_fake = discriminator_fn(
@@ -212,6 +214,7 @@ class ACGAN(Model):
             self.is_training,
             self.update_ops_d,
             self.num_classes,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             reuse=True,
             name='discriminator')
@@ -290,8 +293,8 @@ class ACGAN(Model):
         self.z_sum = tf.summary.histogram('z', self.z)
         self.c_sum = tf.summary.histogram('c', self.c)
         if self.image_summary:
-            self.g_sum = tf.summary.image('g',
-                                          tf.reshape(self.g, self.ouput_shape))
+            self.g_sum = tf.summary.image(
+                'g', tf.reshape(self.g, (-1, ) + self.ouput_shape))
         else:
             self.g_sum = tf.summary.histogram('g', self.g)
         self.d_real_sum = tf.summary.histogram('d_real', self.d_real)

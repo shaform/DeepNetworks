@@ -89,6 +89,7 @@ class WGAN(Model):
             self.X,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             activation_fn=None,
             name='discriminator')
@@ -96,6 +97,7 @@ class WGAN(Model):
             self.g,
             self.is_training,
             self.update_ops_d,
+            input_shape=self.output_shape,
             dim=self.d_dim,
             activation_fn=None,
             reuse=True,
@@ -128,8 +130,8 @@ class WGAN(Model):
     def _build_summary(self):
         self.z_sum = tf.summary.histogram('z', self.z)
         if self.image_summary:
-            self.g_sum = tf.summary.image('g',
-                                          tf.reshape(self.g, self.ouput_shape))
+            self.g_sum = tf.summary.image(
+                'g', tf.reshape(self.g, (-1, ) + self.ouput_shape))
         else:
             self.g_sum = tf.summary.histogram('g', self.g)
         self.d_real_sum = tf.summary.histogram('d_real', self.d_real)
