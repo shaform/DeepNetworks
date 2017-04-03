@@ -2,11 +2,14 @@ import os
 
 import tensorflow as tf
 
+from tqdm import trange
+
 
 class Model(object):
     def __init__(self, sess, name):
         self.name = name
         self.sess = sess
+        self._trange = trange
 
     def save(self, checkpoint_dir, step):
         checkpoint_dir = os.path.join(checkpoint_dir, self.name)

@@ -6,8 +6,6 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from tqdm import trange
-
 from .base import Model
 from .gan import build_basic_discriminator, build_basic_generator
 
@@ -311,7 +309,7 @@ class DiscoGAN(Model):
                 start_epoch = 0
 
             num_batches = self.num_examples // self.batch_size
-            t = trange(start_epoch, num_epochs)
+            t = self._trange(start_epoch, num_epochs)
             for epoch in t:
                 start_idx = step % num_batches
                 epoch_g_loss = []
