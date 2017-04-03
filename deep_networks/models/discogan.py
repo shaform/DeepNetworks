@@ -54,9 +54,9 @@ class DiscoGAN(Model):
             self.X = X_real
             self.Y = Y_real
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.update_ops_noop = self.name + '/update_ops_noop'
-            self.update_ops_d = self.name + '/update_ops_d'
-            self.update_ops_g = self.name + '/update_ops_g'
+            self.updates_collections_noop = self.name + '/updates_collections_noop'
+            self.updates_collections_d = self.name + '/updates_collections_d'
+            self.updates_collections_g = self.name + '/updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -69,7 +69,7 @@ class DiscoGAN(Model):
         self.x_g = generator_fn(
             self.Y,
             self.is_training,
-            self.update_ops_g,
+            self.updates_collections_g,
             self.x_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -77,7 +77,7 @@ class DiscoGAN(Model):
         self.y_g = generator_fn(
             self.X,
             self.is_training,
-            self.update_ops_g,
+            self.updates_collections_g,
             self.y_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -86,7 +86,7 @@ class DiscoGAN(Model):
         self.x_g_recon = generator_fn(
             self.y_g,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.x_output_shape,
             dim=self.g_dim,
             reuse=True,
@@ -95,7 +95,7 @@ class DiscoGAN(Model):
         self.y_g_recon = generator_fn(
             self.x_g,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.y_output_shape,
             dim=self.g_dim,
             reuse=True,
@@ -105,14 +105,14 @@ class DiscoGAN(Model):
         self.x_d_real, self.x_d_logits_real = discriminator_fn(
             self.X,
             self.is_training,
-            self.update_ops_d,
+            self.updates_collections_d,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
             name='x_discriminator')
         self.y_d_real, self.y_d_logits_real = discriminator_fn(
             self.Y,
             self.is_training,
-            self.update_ops_d,
+            self.updates_collections_d,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
             name='y_discriminator')
@@ -120,7 +120,7 @@ class DiscoGAN(Model):
         self.x_d_fake, self.x_d_logits_fake = discriminator_fn(
             self.x_g,
             self.is_training,
-            self.update_ops_d,
+            self.updates_collections_d,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
             reuse=True,
@@ -128,7 +128,7 @@ class DiscoGAN(Model):
         self.y_d_fake, self.y_d_logits_fake = discriminator_fn(
             self.y_g,
             self.is_training,
-            self.update_ops_d,
+            self.updates_collections_d,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
             reuse=True,
@@ -192,7 +192,7 @@ class DiscoGAN(Model):
         self.sampler_for_x = generator_fn(
             self.y_sampler,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.x_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -201,7 +201,7 @@ class DiscoGAN(Model):
         self.sampler_for_y = generator_fn(
             self.x_sampler,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.y_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -210,7 +210,7 @@ class DiscoGAN(Model):
         self.sampler_recon_for_x = generator_fn(
             self.sampler_for_y,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.x_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -219,7 +219,7 @@ class DiscoGAN(Model):
         self.sampler_recon_for_y = generator_fn(
             self.sampler_for_x,
             self.is_training,
-            self.update_ops_noop,
+            self.updates_collections_noop,
             self.y_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -270,13 +270,15 @@ class DiscoGAN(Model):
         g_total_loss = self.g_loss
         d_total_loss = self.d_loss
 
-        update_ops_g = tf.get_collection(self.update_ops_g, scope=scope.name)
+        update_ops_g = tf.get_collection(
+            self.updates_collections_g, scope=scope.name)
         with tf.control_dependencies(update_ops_g):
             self.g_optim = tf.train.AdamOptimizer(
                 self.g_learning_rate, beta1=self.g_beta1).minimize(
                     g_total_loss, var_list=self.x_g_vars + self.y_g_vars)
 
-        update_ops_d = tf.get_collection(self.update_ops_d, scope=scope.name)
+        update_ops_d = tf.get_collection(
+            self.updates_collections_d, scope=scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g):
             self.d_optim = tf.train.AdamOptimizer(
                 self.d_learning_rate, beta1=self.d_beta1).minimize(
