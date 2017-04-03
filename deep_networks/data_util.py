@@ -164,3 +164,11 @@ def save_image_as_tfrecords(
         if num_examples is not None and index >= num_examples:
             break
     writer.close()
+
+
+def norm_image(image):
+    return tf.cast(image, tf.float32) / 127.5 - 1.
+
+
+def denorm_image(image):
+    return tf.cast((image + 1.) * 127.5, tf.uint8)
