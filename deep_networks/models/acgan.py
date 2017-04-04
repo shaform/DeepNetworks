@@ -12,6 +12,7 @@ import tensorflow as tf
 
 from .base import Model
 from ..ops import lrelu
+from ..train import IncrementalAverage
 
 
 def build_basic_generator(z,
@@ -374,17 +375,18 @@ class ACGAN(Model):
                 start_epoch = 0
 
             num_batches = self.num_examples // self.batch_size
-            t = self._trange(start_epoch, num_epochs)
-            for epoch in t:
+            for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
-                epoch_g_loss = []
-                epoch_g_c_loss = []
-                epoch_g_c_accuracy = []
-                epoch_d_loss_fake = []
-                epoch_d_loss_real = []
-                epoch_d_c_loss_real = []
-                epoch_d_c_accuracy_real = []
-                for idx in range(start_idx, num_batches):
+                epoch_g_loss = IncrementalAverage()
+                epoch_g_c_loss = IncrementalAverage()
+                epoch_g_c_accuracy = IncrementalAverage()
+                epoch_d_loss_fake = IncrementalAverage()
+                epoch_d_loss_real = IncrementalAverage()
+                epoch_d_c_loss_real = IncrementalAverage()
+                epoch_d_c_accuracy_real = IncrementalAverage()
+                t = self._trange(
+                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                for idx in t:
                     (_, _, d_loss_fake, d_loss_real, d_c_loss_real,
                      d_c_accuracy_real, g_loss, g_c_loss, g_c_accuracy,
                      summary_str) = self.sess.run(
@@ -395,13 +397,13 @@ class ACGAN(Model):
                              self.g_c_loss, self.g_c_accuracy, self.summary
                          ],
                          feed_dict={self.is_training: True})
-                    epoch_d_loss_fake.append(d_loss_fake)
-                    epoch_d_loss_real.append(d_loss_real)
-                    epoch_d_c_loss_real.append(d_c_loss_real)
-                    epoch_d_c_accuracy_real.append(d_c_accuracy_real)
-                    epoch_g_loss.append(g_loss)
-                    epoch_g_c_loss.append(g_c_loss)
-                    epoch_g_c_accuracy.append(g_c_accuracy)
+                    epoch_d_loss_fake.add(d_loss_fake)
+                    epoch_d_loss_real.add(d_loss_real)
+                    epoch_d_c_loss_real.add(d_c_loss_real)
+                    epoch_d_c_accuracy_real.add(d_c_accuracy_real)
+                    epoch_g_loss.add(g_loss)
+                    epoch_g_c_loss.add(g_c_loss)
+                    epoch_g_c_accuracy.add(g_c_accuracy)
 
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
@@ -419,14 +421,14 @@ class ACGAN(Model):
                          step in sample_step)):
                         sample_fn(self, step)
 
-                t.set_postfix(
-                    g_c_loss=np.mean(epoch_g_c_loss),
-                    g_c_accuracy=np.mean(epoch_g_c_accuracy),
-                    g_loss=np.mean(epoch_g_loss),
-                    d_c_loss_real=np.mean(epoch_d_c_loss_real),
-                    d_c_accuracy_real=np.mean(epoch_d_c_accuracy_real),
-                    d_loss_real=np.mean(epoch_d_loss_real),
-                    d_loss_fake=np.mean(epoch_d_loss_fake))
+                    t.set_postfix(
+                        g_c_loss=epoch_g_c_loss.average,
+                        g_c_accuracy=epoch_g_c_accuracy.average,
+                        g_loss=epoch_g_loss.average,
+                        d_c_loss_real=epoch_d_c_loss_real.average,
+                        d_c_accuracy_real=epoch_d_c_accuracy_real.average,
+                        d_loss_real=epoch_d_loss_real.average,
+                        d_loss_fake=epoch_d_loss_fake.average)
 
     def sample(self, num_samples=None, z=None, c=None):
         if z is not None and c is not None:

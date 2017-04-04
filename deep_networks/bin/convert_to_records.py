@@ -32,14 +32,15 @@ def main():
             for image in mnist.train.images:
                 image = (image.reshape(28, 28) * 255.0).astype(np.uint8)
                 if args.target_height != 28 or args.target_width != 28:
-                    image = imresize(image,
-                                     (args.target_height, args.target_width))
-                image = image.reshape(
-                    (args.target_height, args.target_width, 1))
+                    image = imresize(image, (args.target_height,
+                                             args.target_width))
+                image = image.reshape((args.target_height, args.target_width,
+                                       1))
                 yield image
 
         data_util.save_image_as_tfrecords(args.outfile,
-                                          tqdm.tqdm(produce_images()))
+                                          tqdm.tqdm(produce_images()),
+                                          mnist.train.labels)
     else:
         filename_queue = data_util.list_files_as_filename_queue(
             args.directory, num_epochs=1)

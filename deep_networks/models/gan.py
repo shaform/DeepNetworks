@@ -3,6 +3,7 @@ Generative Adversarial Networks
 """
 
 import functools
+import math
 import operator
 import os
 import time
@@ -12,6 +13,7 @@ import tensorflow as tf
 
 from .base import Model
 from ..ops import lrelu
+from ..train import IncrementalAverage
 
 
 def build_basic_generator(z,
@@ -96,6 +98,130 @@ def build_basic_discriminator(X,
                     biases_initializer=tf.zeros_initializer())
 
         with tf.variable_scope('fc{}'.format(num_layers)):
+            outputs = tf.contrib.layers.fully_connected(
+                inputs=outputs,
+                num_outputs=1,
+                activation_fn=None,
+                weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer())
+            act = activation_fn(outputs) if activation_fn else outputs
+
+        return act, outputs
+
+
+def build_resize_conv_generator(z,
+                                is_training,
+                                updates_collections,
+                                output_shape,
+                                name='generator',
+                                reuse=False,
+                                stddev=0.02,
+                                min_size=4,
+                                dim=128,
+                                num_layers=3,
+                                skip_first_batch=False,
+                                activation_fn=None):
+    assert num_layers > 1
+    target_h, target_w, target_c = output_shape
+    initializer = tf.truncated_normal_initializer(stddev=stddev)
+
+    with tf.variable_scope(name, reuse=reuse):
+        fc = z
+        h = max(min_size, int(math.ceil(target_h / (2**(num_layers - 1)))))
+        w = max(min_size, int(math.ceil(target_w / (2**(num_layers - 1)))))
+        c = dim * (2**(num_layers - 2))
+
+        with tf.variable_scope('fc'):
+            if skip_first_batch:
+                normalizer_fn = normalizer_params = None
+            else:
+                normalizer_fn = tf.contrib.layers.batch_norm
+                normalizer_params = {
+                    'is_training': is_training,
+                    'updates_collections': updates_collections
+                }
+            fc = tf.contrib.layers.fully_connected(
+                inputs=fc,
+                num_outputs=h * w * c,
+                activation_fn=tf.nn.relu,
+                normalizer_fn=normalizer_fn,
+                normalizer_params=normalizer_params,
+                weights_initializer=initializer,
+                biases_initializer=tf.zeros_initializer())
+            fc = tf.reshape(fc, (-1, h, w, c))
+        for i in range(num_layers - 1):
+            if i == num_layers - 2:
+                normalizer_fn = normalizer_params = None
+            else:
+                normalizer_fn = tf.contrib.layers.batch_norm
+                normalizer_params = {
+                    'is_training': is_training,
+                    'updates_collections': updates_collections
+                }
+
+            h = max(min_size,
+                    int(math.ceil(target_h / (2**(num_layers - 2 - i)))))
+            w = max(min_size,
+                    int(math.ceil(target_w / (2**(num_layers - 2 - i)))))
+            c = dim * (2**(
+                num_layers - 3 - i)) if i != num_layers - 2 else target_c
+            fc = tf.image.resize_nearest_neighbor(
+                fc, (h, w), name='g_rs_{}'.format(i + 1))
+            fc = tf.layers.conv2d(
+                inputs=fc,
+                filters=c,
+                kernel_size=(5, 5),
+                strides=(1, 1),
+                padding='SAME',
+                activation=None,
+                kernel_initializer=initializer,
+                name='d_conv{}'.format(i))
+            if normalizer_fn is not None:
+                fc = normalizer_fn(fc, **normalizer_params)
+                fc = tf.nn.relu(fc)
+        return tf.nn.tanh(tf.contrib.layers.flatten(fc))
+
+
+def build_conv_discriminator(X,
+                             is_training,
+                             updates_collections,
+                             input_shape,
+                             name='discriminator',
+                             reuse=False,
+                             stddev=0.02,
+                             dim=64,
+                             num_layers=4,
+                             activation_fn=tf.nn.sigmoid):
+    assert num_layers > 0
+    initializer = tf.truncated_normal_initializer(stddev=stddev)
+
+    with tf.variable_scope(name, reuse=reuse):
+        outputs = tf.reshape(X, (-1, ) + input_shape)
+        for i in range(num_layers - 1):
+            with tf.variable_scope('d_conv{}'.format(i)):
+                if i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.layers.conv2d(
+                    inputs=outputs,
+                    filters=dim,
+                    kernel_size=(5, 5),
+                    strides=(2, 2),
+                    padding='SAME',
+                    activation=None,
+                    kernel_initializer=initializer)
+                if normalizer_fn is not None:
+                    outputs = normalizer_fn(outputs, **normalizer_params)
+                outputs = lrelu(outputs)
+                dim *= 2
+
+        with tf.variable_scope('fc'):
+            outputs = tf.contrib.layers.flatten(outputs)
             outputs = tf.contrib.layers.fully_connected(
                 inputs=outputs,
                 num_outputs=1,
@@ -295,13 +421,14 @@ class GAN(Model):
                 start_epoch = 0
 
             num_batches = self.num_examples // self.batch_size
-            t = self._trange(start_epoch, num_epochs)
-            for epoch in t:
+            for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
-                epoch_g_loss = []
-                epoch_d_loss_fake = []
-                epoch_d_loss_real = []
-                for idx in range(start_idx, num_batches):
+                epoch_g_loss = IncrementalAverage()
+                epoch_d_loss_fake = IncrementalAverage()
+                epoch_d_loss_real = IncrementalAverage()
+                t = self._trange(
+                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                for idx in t:
                     (_, _, d_loss_fake, d_loss_real, g_loss,
                      summary_str) = self.sess.run(
                          [
@@ -309,9 +436,9 @@ class GAN(Model):
                              self.d_loss_real, self.g_loss, self.summary
                          ],
                          feed_dict={self.is_training: True})
-                    epoch_d_loss_fake.append(d_loss_fake)
-                    epoch_d_loss_real.append(d_loss_real)
-                    epoch_g_loss.append(g_loss)
+                    epoch_d_loss_fake.add(d_loss_fake)
+                    epoch_d_loss_real.add(d_loss_real)
+                    epoch_g_loss.add(g_loss)
 
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
@@ -329,10 +456,14 @@ class GAN(Model):
                          step in sample_step)):
                         sample_fn(self, step)
 
-                t.set_postfix(
-                    g_loss=np.mean(epoch_g_loss),
-                    d_loss_real=np.mean(epoch_d_loss_real),
-                    d_loss_fake=np.mean(epoch_d_loss_fake))
+                    t.set_postfix(
+                        g_loss=epoch_g_loss.average,
+                        d_loss_real=epoch_d_loss_real.average,
+                        d_loss_fake=epoch_d_loss_fake.average)
+
+            # Save final checkpoint
+            if checkpoint_dir:
+                self.save(checkpoint_dir, step)
 
     def sample(self, num_samples=None, z=None):
         if z is not None:

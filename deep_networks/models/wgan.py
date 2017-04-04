@@ -10,6 +10,7 @@ import tensorflow as tf
 
 from .base import Model
 from .gan import build_basic_discriminator, build_basic_generator
+from ..train import IncrementalAverage
 
 
 class WGAN(Model):
@@ -207,17 +208,16 @@ class WGAN(Model):
                  ) % self.d_step_high_rounds) * self.d_iters
             block_steps = self.d_high_iters + (
                 self.d_step_high_rounds - 1) * self.d_iters
-            t = self._trange(start_epoch, num_epochs)
-            for epoch in t:
+            for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
-                epoch_g_loss = []
-                epoch_d_loss = []
+                epoch_g_loss = IncrementalAverage()
+                epoch_d_loss = IncrementalAverage()
 
                 def train_D():
                     _, d_loss, summary_str = self.sess.run(
                         [self.d_optim, self.d_loss, self.d_sum],
                         feed_dict={self.is_training: True})
-                    epoch_d_loss.append(d_loss)
+                    epoch_d_loss.add(d_loss)
                     return summary_str
 
                 def train_D_G():
@@ -228,8 +228,8 @@ class WGAN(Model):
                             self.g_loss, self.summary
                         ],
                         feed_dict={self.is_training: True})
-                    epoch_d_loss.append(d_loss)
-                    epoch_g_loss.append(g_loss)
+                    epoch_d_loss.add(d_loss)
+                    epoch_g_loss.add(g_loss)
                     return summary_str
 
                 # the complicated loop is to achieve the following
@@ -245,7 +245,9 @@ class WGAN(Model):
                 #    for _ in range(d_iters):
                 #        train D
                 #    train G
-                for idx in range(start_idx, num_batches):
+                t = self._trange(
+                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                for idx in t:
                     # initially we train discriminator more
                     if step < initial_steps:
                         if (step + 1) % self.d_high_iters != 0:
@@ -285,12 +287,9 @@ class WGAN(Model):
                          step in sample_step)):
                         sample_fn(self, step)
 
-                postfix = {}
-                if len(epoch_g_loss) > 0:
-                    postfix['g_loss'] = np.mean(epoch_g_loss)
-                if len(epoch_d_loss) > 0:
-                    postfix['d_loss'] = np.mean(epoch_d_loss)
-                t.set_postfix(**postfix)
+                    t.set_postfix(
+                        g_loss=epoch_g_loss.average,
+                        d_loss=epoch_d_loss.average)
 
     def sample(self, num_samples=None, z=None):
         if z is not None:

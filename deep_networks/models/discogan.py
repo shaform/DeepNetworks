@@ -1,13 +1,89 @@
 import functools
+import math
 import operator
 import os
 import time
 
-import numpy as np
 import tensorflow as tf
 
 from .base import Model
 from .gan import build_basic_discriminator, build_basic_generator
+from ..ops import lrelu
+from ..train import IncrementalAverage
+
+
+def build_conv_resize_conv_generator(X,
+                                     is_training,
+                                     updates_collections,
+                                     output_shape,
+                                     name='generator',
+                                     reuse=False,
+                                     stddev=0.02,
+                                     min_size=4,
+                                     dim=32,
+                                     num_layers=4,
+                                     skip_first_batch=False,
+                                     activation_fn=None):
+    assert num_layers > 0
+    target_h, target_w, target_c = output_shape
+    initializer = tf.truncated_normal_initializer(stddev=stddev)
+
+    with tf.variable_scope(name, reuse=reuse):
+        outputs = tf.reshape(X, (-1, ) + output_shape)
+        for i in range(num_layers):
+            with tf.variable_scope('d_conv{}'.format(i + 1)):
+                if i == 0:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+                outputs = tf.layers.conv2d(
+                    inputs=outputs,
+                    filters=dim,
+                    kernel_size=4,
+                    strides=2,
+                    padding='SAME',
+                    activation=None,
+                    kernel_initializer=initializer)
+                if normalizer_fn is not None:
+                    outputs = normalizer_fn(outputs, **normalizer_params)
+                outputs = lrelu(outputs)
+                dim *= 2
+
+        dim /= 4
+        for i in range(num_layers):
+            with tf.variable_scope('g_rs_conv{}'.format(i + 1)):
+                if i == num_layers - 1:
+                    normalizer_fn = normalizer_params = None
+                else:
+                    normalizer_fn = tf.contrib.layers.batch_norm
+                    normalizer_params = {
+                        'is_training': is_training,
+                        'updates_collections': updates_collections
+                    }
+
+                h = max(min_size,
+                        int(math.ceil(target_h / (2**(num_layers - 1 - i)))))
+                w = max(min_size,
+                        int(math.ceil(target_w / (2**(num_layers - 1 - i)))))
+                c = dim if i != num_layers - 1 else target_c
+                outputs = tf.image.resize_nearest_neighbor(outputs, (h, w))
+                outputs = tf.layers.conv2d(
+                    inputs=outputs,
+                    filters=c,
+                    kernel_size=4,
+                    strides=1,
+                    padding='SAME',
+                    activation=None,
+                    kernel_initializer=initializer)
+                if normalizer_fn is not None:
+                    outputs = normalizer_fn(outputs, **normalizer_params)
+                    outputs = tf.nn.relu(outputs)
+                dim /= 2
+        return tf.nn.tanh(tf.contrib.layers.flatten(outputs))
 
 
 class DiscoGAN(Model):
@@ -309,20 +385,21 @@ class DiscoGAN(Model):
                 start_epoch = 0
 
             num_batches = self.num_examples // self.batch_size
-            t = self._trange(start_epoch, num_epochs)
-            for epoch in t:
+            for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
-                epoch_g_loss = []
-                epoch_d_loss = []
-                for idx in range(start_idx, num_batches):
+                epoch_g_loss = IncrementalAverage()
+                epoch_d_loss = IncrementalAverage()
+                t = self._trange(
+                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                for idx in t:
                     _, _, d_loss, g_loss, summary_str = self.sess.run(
                         [
                             self.d_optim, self.g_optim, self.d_loss,
                             self.g_loss, self.summary
                         ],
                         feed_dict={self.is_training: True})
-                    epoch_d_loss.append(d_loss)
-                    epoch_g_loss.append(g_loss)
+                    epoch_d_loss.add(d_loss)
+                    epoch_g_loss.add(g_loss)
 
                     if self.writer:
                         self.writer.add_summary(summary_str, step)
@@ -340,8 +417,9 @@ class DiscoGAN(Model):
                          step in sample_step)):
                         sample_fn(self, step)
 
-                t.set_postfix(
-                    g_loss=np.mean(epoch_g_loss), d_loss=np.mean(epoch_d_loss))
+                    t.set_postfix(
+                        g_loss=epoch_g_loss.average,
+                        d_loss=epoch_d_loss.average)
 
     def sample_x(self, y=None):
         if y is not None:
