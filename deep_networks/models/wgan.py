@@ -69,8 +69,6 @@ class WGAN(Model):
                 dtype=tf.float32)
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
             self.updates_collections_noop = 'updates_collections_noop'
-            self.updates_collections_d = 'updates_collections_d'
-            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -83,7 +81,7 @@ class WGAN(Model):
         self.g = generator_fn(
             self.z,
             self.is_training,
-            self.updates_collections_g,
+            tf.GraphKeys.UPDATE_OPS,
             self.output_shape,
             dim=self.g_dim,
             name='generator')
@@ -91,7 +89,7 @@ class WGAN(Model):
         self.d_real, self.d_logits_real = discriminator_fn(
             self.X,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.output_shape,
             dim=self.d_dim,
             activation_fn=None,
@@ -99,7 +97,7 @@ class WGAN(Model):
         self.d_fake, self.d_logits_fake = discriminator_fn(
             self.g,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.output_shape,
             dim=self.d_dim,
             activation_fn=None,
@@ -154,8 +152,9 @@ class WGAN(Model):
         g_total_loss = self.g_loss
         d_total_loss = -self.d_loss
 
-        update_ops_g = tf.get_collection(
-            self.updates_collections_g, scope=scope.name)
+        with tf.variable_scope('generator') as g_scope:
+            update_ops_g = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=g_scope.name)
         with tf.control_dependencies(update_ops_g):
             self.g_optim = tf.train.RMSPropOptimizer(
                 self.g_learning_rate).minimize(
@@ -166,8 +165,9 @@ class WGAN(Model):
                 tf.clip_by_value(v, self.d_clamp_lower, self.d_clamp_upper))
             for v in self.d_vars
         ]
-        update_ops_d = tf.get_collection(
-            self.updates_collections_d, scope=scope.name)
+        with tf.variable_scope('discriminator') as d_scope:
+            update_ops_d = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g + d_clip):
             self.d_optim = tf.train.RMSPropOptimizer(
                 self.d_learning_rate).minimize(

@@ -129,8 +129,6 @@ class DiscoGAN(Model):
             self.Y = Y_real
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
             self.updates_collections_noop = 'updates_collections_noop'
-            self.updates_collections_d = 'updates_collections_d'
-            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -143,7 +141,7 @@ class DiscoGAN(Model):
         self.x_g = generator_fn(
             self.Y,
             self.is_training,
-            self.updates_collections_g,
+            tf.GraphKeys.UPDATE_OPS,
             self.x_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -151,7 +149,7 @@ class DiscoGAN(Model):
         self.y_g = generator_fn(
             self.X,
             self.is_training,
-            self.updates_collections_g,
+            tf.GraphKeys.UPDATE_OPS,
             self.y_output_shape,
             dim=self.g_dim,
             skip_first_batch=True,
@@ -179,14 +177,14 @@ class DiscoGAN(Model):
         self.x_d_real, self.x_d_logits_real = discriminator_fn(
             self.X,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
             name='x_discriminator')
         self.y_d_real, self.y_d_logits_real = discriminator_fn(
             self.Y,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
             name='y_discriminator')
@@ -194,7 +192,7 @@ class DiscoGAN(Model):
         self.x_d_fake, self.x_d_logits_fake = discriminator_fn(
             self.x_g,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
             reuse=True,
@@ -202,7 +200,7 @@ class DiscoGAN(Model):
         self.y_d_fake, self.y_d_logits_fake = discriminator_fn(
             self.y_g,
             self.is_training,
-            self.updates_collections_d,
+            tf.GraphKeys.UPDATE_OPS,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
             reuse=True,
@@ -344,15 +342,25 @@ class DiscoGAN(Model):
         g_total_loss = self.g_loss
         d_total_loss = self.d_loss
 
-        update_ops_g = tf.get_collection(
-            self.updates_collections_g, scope=scope.name)
+        with tf.variable_scope('x_generator') as g_scope:
+            update_ops_x_g = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=g_scope.name)
+        with tf.variable_scope('y_generator') as g_scope:
+            update_ops_y_g = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=g_scope.name)
+        update_ops_g = update_ops_x_g + update_ops_y_g
         with tf.control_dependencies(update_ops_g):
             self.g_optim = tf.train.AdamOptimizer(
                 self.g_learning_rate, beta1=self.g_beta1).minimize(
                     g_total_loss, var_list=self.x_g_vars + self.y_g_vars)
 
-        update_ops_d = tf.get_collection(
-            self.updates_collections_d, scope=scope.name)
+        with tf.variable_scope('x_discriminator') as d_scope:
+            update_ops_x_d = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
+        with tf.variable_scope('y_discriminator') as d_scope:
+            update_ops_y_d = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
+        update_ops_d = update_ops_x_d + update_ops_y_d
         with tf.control_dependencies(update_ops_d + update_ops_g):
             self.d_optim = tf.train.AdamOptimizer(
                 self.d_learning_rate, beta1=self.d_beta1).minimize(

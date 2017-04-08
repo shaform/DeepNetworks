@@ -187,8 +187,6 @@ class ACGAN(Model):
                 name='c')
             self.is_training = tf.placeholder(tf.bool, [], name='is_training')
             self.updates_collections_noop = 'updates_collections_noop'
-            self.updates_collections_d = 'updates_collections_d'
-            self.updates_collections_g = 'updates_collections_g'
 
             self._build_GAN(generator_fn, discriminator_fn)
             self._build_summary()
@@ -202,7 +200,7 @@ class ACGAN(Model):
             self.z,
             self.c,
             self.is_training,
-            self.updates_collections_g,
+            tf.GraphKeys.UPDATE_OPS,
             self.output_shape,
             self.num_classes,
             dim=self.g_dim,
@@ -212,7 +210,7 @@ class ACGAN(Model):
          self.d_c_logits_real) = discriminator_fn(
              self.X,
              self.is_training,
-             self.updates_collections_d,
+             tf.GraphKeys.UPDATE_OPS,
              self.num_classes,
              input_shape=self.output_shape,
              dim=self.d_dim,
@@ -221,7 +219,7 @@ class ACGAN(Model):
          self.d_c_logits_fake) = discriminator_fn(
              self.g,
              self.is_training,
-             self.updates_collections_d,
+             tf.GraphKeys.UPDATE_OPS,
              self.num_classes,
              input_shape=self.output_shape,
              dim=self.d_dim,
@@ -334,15 +332,17 @@ class ACGAN(Model):
         g_total_loss = self.g_loss + self.g_c_loss + self.g_reg_loss
         d_total_loss = self.d_loss + self.d_c_loss
 
-        update_ops_g = tf.get_collection(
-            self.updates_collections_g, scope=scope.name)
+        with tf.variable_scope('generator') as g_scope:
+            update_ops_g = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=g_scope.name)
         with tf.control_dependencies(update_ops_g):
             self.g_optim = tf.train.AdamOptimizer(
                 self.g_learning_rate, beta1=self.g_beta1).minimize(
                     g_total_loss, var_list=self.g_vars)
 
-        update_ops_d = tf.get_collection(
-            self.updates_collections_d, scope=scope.name)
+        with tf.variable_scope('discriminator') as d_scope:
+            update_ops_d = tf.get_collection(
+                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
         with tf.control_dependencies(update_ops_d + update_ops_g):
             self.d_optim = tf.train.AdamOptimizer(
                 self.d_learning_rate, beta1=self.d_beta1).minimize(
