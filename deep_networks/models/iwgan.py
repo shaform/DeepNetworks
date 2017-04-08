@@ -197,6 +197,7 @@ class WGAN(Model):
     def train(self,
               num_epochs,
               resume=True,
+              resume_step=None,
               checkpoint_dir=None,
               save_step=500,
               sample_step=100,
@@ -212,7 +213,7 @@ class WGAN(Model):
 
             success, step = False, 0
             if resume and checkpoint_dir:
-                success, saved_step = self.load(checkpoint_dir)
+                success, saved_step = self.load(checkpoint_dir, resume_step)
 
             if success:
                 step = saved_step + 1
@@ -303,7 +304,7 @@ class WGAN(Model):
                     step += 1
 
                     # Save checkpoint
-                    if checkpoint_dir and step % save_step == 0:
+                    if checkpoint_dir and save_step and step % save_step == 0:
                         self.save(checkpoint_dir, step)
 
                     # Sample

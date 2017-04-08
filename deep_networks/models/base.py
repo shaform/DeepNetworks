@@ -42,13 +42,14 @@ class Model(object):
         self.init_saver()
 
         checkpoint_path = None
-        if step is None:
-            ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-            if ckpt and ckpt.model_checkpoint_path:
-                checkpoint_path = ckpt.model_checkpoint_path
-        else:
-            checkpoint_path = os.path.join(checkpoint_dir, '{}-{}'.format(
-                self.name, step))
+        if os.path.exists(checkpoint_dir):
+            if step is None:
+                ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+                if ckpt and ckpt.model_checkpoint_path:
+                    checkpoint_path = ckpt.model_checkpoint_path
+            else:
+                checkpoint_path = os.path.join(checkpoint_dir, '{}-{}'.format(
+                    self.name, step))
 
         if checkpoint_path is not None and tf.train.checkpoint_exists(
                 checkpoint_path):
