@@ -1,16 +1,22 @@
+"""convert_to_records
+
+Convert images to TFRecords
+"""
+
 import argparse
 
 import numpy as np
 import tensorflow as tf
 import tqdm
 
-from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imresize
+from tensorflow.examples.tutorials.mnist import input_data
 
 from deep_networks import data_util
 
 
 def parse_args():
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', help='Directory of images')
     parser.add_argument('outfile', help='Output tfrecords')
@@ -23,24 +29,31 @@ def parse_args():
     return parser.parse_args()
 
 
+def read_mnist(path):
+    """Read MNIST images and normalize the data
+
+    :param path: directory of MNIST data
+    """
+    mnist = input_data.read_data_sets(path)
+    images = (mnist.train.images.reshape((-1, 28,
+                                          28)) * 255.0).astype(np.uint8)
+    labels = mnist.train.labels
+    return images, labels
+
+
 def main():
     args = parse_args()
     if args.use_mnist:
-        mnist = input_data.read_data_sets(args.directory)
+        images, labels = read_mnist(args.directory)
 
-        def produce_images():
-            for image in mnist.train.images:
-                image = (image.reshape(28, 28) * 255.0).astype(np.uint8)
-                if args.target_height != 28 or args.target_width != 28:
-                    image = imresize(image, (args.target_height,
-                                             args.target_width))
-                image = image.reshape((args.target_height, args.target_width,
-                                       1))
-                yield image
+        if args.target_width != 28 or args.target_width != 28:
+            images = np.vstack([
+                imresize(image, (args.target_height, args.target_width))
+                for image in images
+            ])
+        images = images.reshape((-1, args.target_height, args.target_width, 1))
 
-        data_util.save_image_as_tfrecords(args.outfile,
-                                          tqdm.tqdm(produce_images()),
-                                          mnist.train.labels)
+        data_util.save_image_as_tfrecords(args.outfile, images, labels)
     else:
         filename_queue = data_util.list_files_as_filename_queue(
             args.directory, num_epochs=1)
@@ -57,7 +70,7 @@ def main():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            def produce_images():
+            def _produce_images():
                 try:
                     while True:
                         yield sess.run(image)
@@ -65,7 +78,7 @@ def main():
                     pass
 
             data_util.save_image_as_tfrecords(args.outfile,
-                                              tqdm.tqdm(produce_images()))
+                                              tqdm.tqdm(_produce_images()))
 
             coord.request_stop()
             coord.join(threads)

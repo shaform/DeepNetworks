@@ -1,3 +1,4 @@
+"""Utils for data input/output"""
 import glob
 import itertools
 import math
@@ -7,14 +8,6 @@ import numpy as np
 import tensorflow as tf
 
 
-def _int64_feature(value):
-    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
-
-
-def _bytes_feature(value):
-    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
-
-
 def gaussian_mixture(num_clusters=5,
                      scale=1.0,
                      stddev=0.2,
@@ -22,6 +15,16 @@ def gaussian_mixture(num_clusters=5,
                      minval=None,
                      maxval=None,
                      name='gaussian_mixture'):
+    """Gaussian mixture data set
+
+    :param num_clusters: number of clusters
+    :param scale: scale of the cluster centers
+    :param stddev: stddev of the clusters
+    :param batch_size: batch size of the resulting queue
+    :param minval: select part of the clusters
+    :param maxval: select part of the clusters
+    :param name: name
+    """
     with tf.name_scope(name):
         if minval is None:
             minval = 0
@@ -41,6 +44,12 @@ def gaussian_mixture(num_clusters=5,
 
 
 def crop_and_resize(image, target_height, target_width):
+    """Scale image to target size and crop remaining part at center
+
+    :param image: input image tensor
+    :param target_height: target height
+    :param target_width: target width
+    """
     image_height = tf.shape(image)[0]
     image_width = tf.shape(image)[1]
     scale = tf.maximum(target_height * image_width,
@@ -54,6 +63,11 @@ def crop_and_resize(image, target_height, target_width):
 
 
 def list_files(file_path, allow_regex=None):
+    """Recursively list files
+
+    :param file_path: file paths or directory paths
+    :param allow_regex: filter paths by regex
+    """
     if isinstance(file_path, list):
         paths = []
         for path in file_path:
@@ -70,6 +84,12 @@ def list_files(file_path, allow_regex=None):
 
 
 def list_files_as_filename_queue(file_path, allow_regex=None, num_epochs=None):
+    """List files in directory as filename queue
+
+    :param file_path: file paths or directory paths
+    :param allow_regex: filter paths by regex
+    :param num_epochs: epochs of the resulting queue
+    """
     paths = list_files(file_path, allow_regex=allow_regex)
     filename_queue = tf.train.string_input_producer(
         paths, num_epochs=num_epochs)
@@ -77,8 +97,13 @@ def list_files_as_filename_queue(file_path, allow_regex=None, num_epochs=None):
 
 
 def read_images(filename_queue, set_shape=(None, None, None)):
+    """Read and decode image files
+
+    :param filename_queue: filename queue
+    :param set_shape: output tensor shape
+    """
     reader = tf.WholeFileReader()
-    key, value = reader.read(filename_queue)
+    _, value = reader.read(filename_queue)
 
     image = tf.image.decode_image(value)
     if set_shape:
@@ -92,6 +117,14 @@ def read_image_from_tfrecords(
         target_height=None,
         target_width=None,
         compression_type=tf.python_io.TFRecordCompressionType.GZIP):
+    """Read images from TFRecords
+
+    :param filename_queue: filename queue
+    :param with_labels: whether to read labels as well
+    :param target_height: resize to target_hight
+    :param target_width: resize to target_with
+    :param compression_type: compression of the tfrecords
+    """
     reader = tf.TFRecordReader(
         options=tf.python_io.TFRecordOptions(compression_type))
 
@@ -132,12 +165,28 @@ def read_image_from_tfrecords(
         return image
 
 
+def _int64_feature(value):
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
 def save_image_as_tfrecords(
         path,
         images,
         labels=None,
         num_examples=None,
         compression_type=tf.python_io.TFRecordCompressionType.GZIP):
+    """Convert all images to TFRecords and save to path
+
+    :param path: output location
+    :param images: input image numpy arrays
+    :param labels: input image labels
+    :param num_examples: total number of images
+    :param compression_type: compression for tfrecords
+    """
     if labels is None:
         labels = itertools.repeat(None)
 
@@ -168,16 +217,32 @@ def save_image_as_tfrecords(
 
 
 def norm_image(image):
+    """Normalize a image tensor of range [0, 255] to [-1.0, 1.0]
+
+    :param image: input tensor
+    """
     return tf.cast(image, tf.float32) / 127.5 - 1.
 
 
 def denorm_image(image):
+    """Undo normalization of a tensor of range [-1.0, 1.0] to [0, 255]
+
+    :param image: input tensor
+    """
     return tf.cast((image + 1.) * 127.5, tf.uint8)
 
 
 def np_norm_image(image):
+    """Normalize a image numpy array of range [0, 255] to [-1.0, 1.0]
+
+    :param image: input numpy array
+    """
     return image.astype(np.float32) / 127.5 - 1.
 
 
 def np_denorm_image(image):
+    """Undo normalization of a numpy array of range [-1.0, 1.0] to [0, 255]
+
+    :param image: input numpy array
+    """
     return ((image + 1.) * 127.5).astype(np.uint8)
