@@ -222,31 +222,31 @@ class ACGAN(Model):
 
     def _build_GAN(self, generator_fn, discriminator_fn):
         self.g, self.codes = generator_fn(
-            self.z,
-            self.c,
-            self.is_training,
-            tf.GraphKeys.UPDATE_OPS,
-            self.output_shape,
-            self.num_classes,
+            z=self.z,
+            c=self.c,
+            is_training=self.is_training,
+            updates_collections=tf.GraphKeys.UPDATE_OPS,
+            output_shape=self.output_shape,
+            num_classes=self.num_classes,
             dim=self.g_dim,
             name='generator')
 
         (self.d_real, self.d_logits_real, self.d_c_real,
          self.d_c_logits_real) = discriminator_fn(
-             self.X,
-             self.is_training,
-             tf.GraphKeys.UPDATE_OPS,
-             self.num_classes,
+             X=self.X,
+             is_training=self.is_training,
+             updates_collections=tf.GraphKeys.UPDATE_OPS,
              input_shape=self.output_shape,
+             num_classes=self.num_classes,
              dim=self.d_dim,
              name='discriminator')
         (self.d_fake, self.d_logits_fake, self.d_c_fake,
          self.d_c_logits_fake) = discriminator_fn(
-             self.g,
-             self.is_training,
-             tf.GraphKeys.UPDATE_OPS,
-             self.num_classes,
+             X=self.g,
+             is_training=self.is_training,
+             updates_collections=tf.GraphKeys.UPDATE_OPS,
              input_shape=self.output_shape,
+             num_classes=self.num_classes,
              dim=self.d_dim,
              reuse=True,
              name='discriminator')
@@ -376,6 +376,7 @@ class ACGAN(Model):
     def train(self,
               num_epochs,
               resume=True,
+              resume_step=None,
               checkpoint_dir=None,
               save_step=500,
               sample_step=100,
@@ -391,7 +392,7 @@ class ACGAN(Model):
 
             success, step = False, 0
             if resume and checkpoint_dir:
-                success, saved_step = self.load(checkpoint_dir)
+                success, saved_step = self.load(checkpoint_dir, resume_step)
 
             if success:
                 step = saved_step + 1
@@ -435,7 +436,7 @@ class ACGAN(Model):
                     step += 1
 
                     # Save checkpoint
-                    if checkpoint_dir and step % save_step == 0:
+                    if checkpoint_dir and save_step and step % save_step == 0:
                         self.save(checkpoint_dir, step)
 
                     # Sample
