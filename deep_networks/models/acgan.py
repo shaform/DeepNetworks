@@ -10,6 +10,7 @@ import time
 import numpy as np
 import tensorflow as tf
 
+from . import gan
 from .base import Model
 from ..ops import lrelu
 from ..train import IncrementalAverage
@@ -29,8 +30,6 @@ def build_basic_generator(z,
                           skip_first_batch=False,
                           activation_fn=None):
     assert num_layers > 0
-    output_size = functools.reduce(operator.mul, output_shape)
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
     xavier_initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
@@ -42,33 +41,19 @@ def build_basic_generator(z,
             z_c = tf.nn.embedding_lookup(codes, c)
             outputs = tf.multiply(z, z_c)
 
-        for i in range(num_layers - 1):
-            with tf.variable_scope('fc{}'.format(i + 1)):
-                if skip_first_batch and i == 0:
-                    normalizer_fn = normalizer_params = None
-                else:
-                    normalizer_fn = tf.contrib.layers.batch_norm
-                    normalizer_params = {
-                        'is_training': is_training,
-                        'updates_collections': updates_collections
-                    }
-                outputs = tf.contrib.layers.fully_connected(
-                    inputs=outputs,
-                    num_outputs=dim,
-                    activation_fn=tf.nn.relu,
-                    normalizer_fn=normalizer_fn,
-                    normalizer_params=normalizer_params,
-                    weights_initializer=initializer,
-                    biases_initializer=tf.zeros_initializer())
-
-        with tf.variable_scope('fc{}'.format(num_layers)):
-            outputs = tf.contrib.layers.fully_connected(
-                inputs=outputs,
-                num_outputs=output_size,
-                activation_fn=activation_fn,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer())
-        return outputs, codes
+    outputs = gan.build_basic_generator(
+        z=outputs,
+        is_training=is_training,
+        updates_collections=updates_collections,
+        output_shape=output_shape,
+        name=name,
+        reuse=reuse,
+        stddev=stddev,
+        dim=dim,
+        num_layers=num_layers,
+        skip_first_batch=skip_first_batch,
+        activation_fn=activation_fn)
+    return outputs, codes
 
 
 def build_basic_discriminator(X,
@@ -83,48 +68,88 @@ def build_basic_discriminator(X,
                               num_layers=3,
                               activation_fn=tf.nn.sigmoid,
                               class_activation_fn=tf.nn.softmax):
+    return gan.build_basic_discriminator(
+        X=X,
+        is_training=is_training,
+        updates_collections=updates_collections,
+        num_classes=num_classes,
+        input_shape=input_shape,
+        name=name,
+        reuse=reuse,
+        stddev=stddev,
+        dim=dim,
+        num_layers=num_layers,
+        activation_fn=activation_fn,
+        class_activation_fn=class_activation_fn)
+
+
+def build_resize_conv_generator(z,
+                                c,
+                                is_training,
+                                updates_collections,
+                                output_shape,
+                                num_classes,
+                                name='generator',
+                                reuse=False,
+                                stddev=0.02,
+                                min_size=4,
+                                dim=128,
+                                num_layers=3,
+                                skip_first_batch=False,
+                                activation_fn=None):
     assert num_layers > 0
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    xavier_initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
-        outputs = X
-        for i in range(num_layers - 1):
-            with tf.variable_scope('fc{}'.format(i + 1)):
-                if i == 0:
-                    normalizer_fn = normalizer_params = None
-                else:
-                    normalizer_fn = tf.contrib.layers.batch_norm
-                    normalizer_params = {
-                        'is_training': is_training,
-                        'updates_collections': updates_collections
-                    }
-                outputs = tf.contrib.layers.fully_connected(
-                    inputs=outputs,
-                    num_outputs=dim,
-                    activation_fn=lrelu,
-                    normalizer_fn=normalizer_fn,
-                    normalizer_params=normalizer_params,
-                    weights_initializer=initializer,
-                    biases_initializer=tf.zeros_initializer())
+        with tf.variable_scope('codes'):
+            codes = tf.get_variable(
+                'codes', [num_classes, z.get_shape()[1]],
+                initializer=xavier_initializer,
+                regularizer=tf.contrib.layers.l2_regularizer(0.8))
+            z_c = tf.nn.embedding_lookup(codes, c)
+            outputs = tf.multiply(z, z_c)
 
-        with tf.variable_scope('fc_d'):
-            fc_d = tf.contrib.layers.fully_connected(
-                inputs=outputs,
-                num_outputs=1,
-                activation_fn=None,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer())
-            act_d = activation_fn(fc_d) if activation_fn else fc_d
+    outputs = gan.build_resize_conv_generator(
+        z=outputs,
+        is_training=is_training,
+        updates_collections=updates_collections,
+        output_shape=output_shape,
+        name=name,
+        reuse=reuse,
+        stddev=stddev,
+        min_size=min_size,
+        dim=dim,
+        num_layers=num_layers,
+        skip_first_batch=skip_first_batch,
+        activation_fn=activation_fn)
+    return outputs, codes
 
-        with tf.variable_scope('fc_c'):
-            fc_c = tf.contrib.layers.fully_connected(
-                inputs=outputs,
-                num_outputs=num_classes,
-                activation_fn=None,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer())
-            act_c = class_activation_fn(fc_c) if class_activation_fn else fc_c
-        return act_d, fc_d, act_c, fc_c
+
+def build_conv_discriminator(X,
+                             is_training,
+                             updates_collections,
+                             input_shape,
+                             num_classes=None,
+                             name='discriminator',
+                             reuse=False,
+                             stddev=0.02,
+                             dim=64,
+                             num_layers=4,
+                             activation_fn=tf.nn.sigmoid,
+                             class_activation_fn=tf.nn.softmax):
+    return gan.build_conv_discriminator(
+        X=X,
+        is_training=is_training,
+        updates_collections=updates_collections,
+        input_shape=input_shape,
+        num_classes=num_classes,
+        name=name,
+        reuse=reuse,
+        stddev=stddev,
+        dim=dim,
+        num_layers=num_layers,
+        activation_fn=activation_fn,
+        class_activation_fn=class_activation_fn)
 
 
 class ACGAN(Model):

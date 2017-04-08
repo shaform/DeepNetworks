@@ -66,13 +66,15 @@ def build_basic_generator(z,
 def build_basic_discriminator(X,
                               is_training,
                               updates_collections,
+                              num_classes=None,
                               input_shape=None,
                               name='discriminator',
                               reuse=False,
                               stddev=0.02,
                               dim=128,
                               num_layers=3,
-                              activation_fn=tf.nn.sigmoid):
+                              activation_fn=tf.nn.sigmoid,
+                              class_activation_fn=tf.nn.softmax):
     assert num_layers > 0
     initializer = tf.truncated_normal_initializer(stddev=stddev)
 
@@ -97,16 +99,28 @@ def build_basic_discriminator(X,
                     weights_initializer=initializer,
                     biases_initializer=tf.zeros_initializer())
 
-        with tf.variable_scope('fc{}'.format(num_layers)):
-            outputs = tf.contrib.layers.fully_connected(
+        with tf.variable_scope('fc_d'):
+            fc_d = tf.contrib.layers.fully_connected(
                 inputs=outputs,
                 num_outputs=1,
                 activation_fn=None,
                 weights_initializer=initializer,
                 biases_initializer=tf.zeros_initializer())
-            act = activation_fn(outputs) if activation_fn else outputs
+            act_d = activation_fn(fc_d) if activation_fn else fc_d
 
-        return act, outputs
+        if num_classes is None:
+            return act_d, fc_d
+        else:
+            with tf.variable_scope('fc_c'):
+                fc_c = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=num_classes,
+                    activation_fn=None,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
+                act_c = class_activation_fn(
+                    fc_c) if class_activation_fn else fc_c
+            return act_d, fc_d, act_c, fc_c
 
 
 def build_resize_conv_generator(z,
@@ -186,12 +200,14 @@ def build_conv_discriminator(X,
                              is_training,
                              updates_collections,
                              input_shape,
+                             num_classes=None,
                              name='discriminator',
                              reuse=False,
                              stddev=0.02,
                              dim=64,
                              num_layers=4,
-                             activation_fn=tf.nn.sigmoid):
+                             activation_fn=tf.nn.sigmoid,
+                             class_activation_fn=tf.nn.softmax):
     assert num_layers > 0
     initializer = tf.truncated_normal_initializer(stddev=stddev)
 
@@ -220,17 +236,30 @@ def build_conv_discriminator(X,
                 outputs = lrelu(outputs)
                 dim *= 2
 
+        outputs = tf.contrib.layers.flatten(outputs)
+
         with tf.variable_scope('fc'):
-            outputs = tf.contrib.layers.flatten(outputs)
-            outputs = tf.contrib.layers.fully_connected(
+            fc_d = tf.contrib.layers.fully_connected(
                 inputs=outputs,
                 num_outputs=1,
                 activation_fn=None,
                 weights_initializer=initializer,
                 biases_initializer=tf.zeros_initializer())
-            act = activation_fn(outputs) if activation_fn else outputs
+            act_d = activation_fn(fc_d) if activation_fn else fc_d
 
-        return act, outputs
+        if num_classes is None:
+            return act_d, fc_d
+        else:
+            with tf.variable_scope('fc_c'):
+                fc_c = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=num_classes,
+                    activation_fn=None,
+                    weights_initializer=initializer,
+                    biases_initializer=tf.zeros_initializer())
+                act_c = class_activation_fn(
+                    fc_c) if class_activation_fn else fc_c
+            return act_d, fc_d, act_c, fc_c
 
 
 class GAN(Model):
@@ -446,7 +475,7 @@ class GAN(Model):
                     step += 1
 
                     # Save checkpoint
-                    if checkpoint_dir and step % save_step == 0:
+                    if checkpoint_dir and save_step and step % save_step == 0:
                         self.save(checkpoint_dir, step)
 
                     # Sample
