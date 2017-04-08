@@ -3,6 +3,7 @@ import itertools
 import math
 import os
 
+import numpy as np
 import tensorflow as tf
 
 
@@ -172,3 +173,11 @@ def norm_image(image):
 
 def denorm_image(image):
     return tf.cast((image + 1.) * 127.5, tf.uint8)
+
+
+def np_norm_image(image):
+    return image.astype(np.float32) / 127.5 - 1.
+
+
+def np_denorm_image(image):
+    return ((image + 1.) * 127.5).astype(np.uint8)
