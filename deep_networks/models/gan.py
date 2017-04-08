@@ -397,6 +397,7 @@ class GAN(Model):
     def train(self,
               num_epochs,
               resume=True,
+              resume_step=None,
               checkpoint_dir=None,
               save_step=500,
               sample_step=100,
@@ -412,7 +413,7 @@ class GAN(Model):
 
             success, step = False, 0
             if resume and checkpoint_dir:
-                success, saved_step = self.load(checkpoint_dir)
+                success, saved_step = self.load(checkpoint_dir, resume_step)
 
             if success:
                 step = saved_step + 1
