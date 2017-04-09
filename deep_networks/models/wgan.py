@@ -190,17 +190,18 @@ class WGAN(Model):
             else:
                 self.writer = None
 
+            num_batches = self.num_examples // self.batch_size
+
             success, step = False, 0
             if resume and checkpoint_dir:
                 success, saved_step = self.load(checkpoint_dir, resume_step)
 
             if success:
-                step = saved_step + 1
-                start_epoch = (step * self.batch_size) // self.num_examples
+                step = saved_step
+                start_epoch = step // num_batches
             else:
                 start_epoch = 0
 
-            num_batches = self.num_examples // self.batch_size
             initial_steps = self.d_high_iters * self.d_intial_high_rounds
             # steps to free from initial steps
             passing_steps = initial_steps + (

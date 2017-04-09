@@ -390,17 +390,18 @@ class ACGAN(Model):
             else:
                 self.writer = None
 
+            num_batches = self.num_examples // self.batch_size
+
             success, step = False, 0
             if resume and checkpoint_dir:
                 success, saved_step = self.load(checkpoint_dir, resume_step)
 
             if success:
-                step = saved_step + 1
-                start_epoch = (step * self.batch_size) // self.num_examples
+                step = saved_step
+                start_epoch = step // num_batches
             else:
                 start_epoch = 0
 
-            num_batches = self.num_examples // self.batch_size
             for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
                 epoch_g_loss = IncrementalAverage()
