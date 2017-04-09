@@ -68,6 +68,7 @@ def build_basic_discriminator(X,
                               updates_collections,
                               num_classes=None,
                               input_shape=None,
+                              return_features=False,
                               name='discriminator',
                               reuse=False,
                               stddev=0.02,
@@ -80,6 +81,7 @@ def build_basic_discriminator(X,
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = X
+        features = []
         for i in range(num_layers - 1):
             with tf.variable_scope('fc{}'.format(i + 1)):
                 if i == 0:
@@ -98,6 +100,7 @@ def build_basic_discriminator(X,
                     normalizer_params=normalizer_params,
                     weights_initializer=initializer,
                     biases_initializer=tf.zeros_initializer())
+                features.append(outputs)
 
         with tf.variable_scope('fc_d'):
             fc_d = tf.contrib.layers.fully_connected(
@@ -109,7 +112,10 @@ def build_basic_discriminator(X,
             act_d = activation_fn(fc_d) if activation_fn else fc_d
 
         if num_classes is None:
-            return act_d, fc_d
+            if return_features:
+                return act_d, fc_d, features
+            else:
+                return act_d, fc_d
         else:
             with tf.variable_scope('fc_c'):
                 fc_c = tf.contrib.layers.fully_connected(
@@ -120,7 +126,10 @@ def build_basic_discriminator(X,
                     biases_initializer=tf.zeros_initializer())
                 act_c = class_activation_fn(
                     fc_c) if class_activation_fn else fc_c
-            return act_d, fc_d, act_c, fc_c
+            if return_features:
+                return act_d, fc_d, act_c, fc_c, features
+            else:
+                return act_d, fc_d, act_c, fc_c
 
 
 def build_resize_conv_generator(z,
@@ -201,6 +210,7 @@ def build_conv_discriminator(X,
                              updates_collections,
                              input_shape,
                              num_classes=None,
+                             return_features=False,
                              name='discriminator',
                              reuse=False,
                              stddev=0.02,
@@ -213,6 +223,7 @@ def build_conv_discriminator(X,
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = tf.reshape(X, (-1, ) + input_shape)
+        features = []
         for i in range(num_layers - 1):
             with tf.variable_scope('d_conv{}'.format(i)):
                 if i == 0:
@@ -234,6 +245,7 @@ def build_conv_discriminator(X,
                 if normalizer_fn is not None:
                     outputs = normalizer_fn(outputs, **normalizer_params)
                 outputs = lrelu(outputs)
+                features.append(outputs)
                 dim *= 2
 
         outputs = tf.contrib.layers.flatten(outputs)
@@ -248,7 +260,10 @@ def build_conv_discriminator(X,
             act_d = activation_fn(fc_d) if activation_fn else fc_d
 
         if num_classes is None:
-            return act_d, fc_d
+            if return_features:
+                return act_d, fc_d, features
+            else:
+                return act_d, fc_d
         else:
             with tf.variable_scope('fc_c'):
                 fc_c = tf.contrib.layers.fully_connected(
@@ -259,7 +274,10 @@ def build_conv_discriminator(X,
                     biases_initializer=tf.zeros_initializer())
                 act_c = class_activation_fn(
                     fc_c) if class_activation_fn else fc_c
-            return act_d, fc_d, act_c, fc_c
+            if return_features:
+                return act_d, fc_d, act_c, fc_c, features
+            else:
+                return act_d, fc_d, act_c, fc_c
 
 
 class GAN(Model):

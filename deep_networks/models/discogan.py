@@ -174,51 +174,78 @@ class DiscoGAN(Model):
             skip_first_batch=True,
             name='y_generator')
 
-        self.x_d_real, self.x_d_logits_real = discriminator_fn(
+        self.x_d_real, self.x_d_logits_real, self.x_d_feats_real = discriminator_fn(
             self.X,
             self.is_training,
             tf.GraphKeys.UPDATE_OPS,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
-            name='x_discriminator')
-        self.y_d_real, self.y_d_logits_real = discriminator_fn(
+            name='x_discriminator',
+            return_features=True)
+        self.y_d_real, self.y_d_logits_real, self.y_d_feats_real = discriminator_fn(
             self.Y,
             self.is_training,
             tf.GraphKeys.UPDATE_OPS,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
-            name='y_discriminator')
+            name='y_discriminator',
+            return_features=True)
 
-        self.x_d_fake, self.x_d_logits_fake = discriminator_fn(
+        self.x_d_fake, self.x_d_logits_fake, self.x_d_feats_fake = discriminator_fn(
             self.x_g,
             self.is_training,
             tf.GraphKeys.UPDATE_OPS,
             input_shape=self.x_output_shape,
             dim=self.d_dim,
             reuse=True,
-            name='x_discriminator')
-        self.y_d_fake, self.y_d_logits_fake = discriminator_fn(
+            name='x_discriminator',
+            return_features=True)
+        self.y_d_fake, self.y_d_logits_fake, self.y_d_feats_fake = discriminator_fn(
             self.y_g,
             self.is_training,
             tf.GraphKeys.UPDATE_OPS,
             input_shape=self.y_output_shape,
             dim=self.d_dim,
             reuse=True,
-            name='y_discriminator')
+            name='y_discriminator',
+            return_features=True)
+
+        _, _, self.x_d_feats_recon = discriminator_fn(
+            self.x_g_recon,
+            self.is_training,
+            tf.GraphKeys.UPDATE_OPS,
+            input_shape=self.x_output_shape,
+            dim=self.d_dim,
+            reuse=True,
+            name='x_discriminator',
+            return_features=True)
+        _, _, self.y_d_feats_recon = discriminator_fn(
+            self.y_g_recon,
+            self.is_training,
+            tf.GraphKeys.UPDATE_OPS,
+            input_shape=self.y_output_shape,
+            dim=self.d_dim,
+            reuse=True,
+            name='y_discriminator',
+            return_features=True)
 
         self.x_recon_loss = tf.reduce_sum(
-            tf.losses.mean_squared_error(self.X, self.x_g_recon))
+            tf.losses.mean_squared_error(self.X, self.x_g_recon)
+        ) + self.feats_loss(self.x_d_feats_real, self.x_d_feats_recon)
         self.y_recon_loss = tf.reduce_sum(
-            tf.losses.mean_squared_error(self.Y, self.y_g_recon))
+            tf.losses.mean_squared_error(self.Y, self.y_g_recon)
+        ) + self.feats_loss(self.y_d_feats_real, self.y_d_feats_recon)
 
         self.x_g_loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits=self.x_d_logits_fake,
-                labels=tf.ones_like(self.x_d_logits_fake)))
+                labels=tf.ones_like(self.x_d_logits_fake))) + self.feats_loss(
+                    self.x_d_feats_real, self.x_d_feats_fake)
         self.y_g_loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits=self.y_d_logits_fake,
-                labels=tf.ones_like(self.y_d_logits_fake)))
+                labels=tf.ones_like(self.y_d_logits_fake))) + self.feats_loss(
+                    self.y_d_feats_real, self.y_d_feats_fake)
         self.g_loss = self.x_g_loss + self.y_g_loss + self.x_recon_loss + self.y_recon_loss
 
         if self.d_label_smooth > 0.0:
@@ -452,3 +479,11 @@ class DiscoGAN(Model):
             return self.sess.run(
                 [self.X, self.y_g, self.x_g_recon],
                 feed_dict={self.is_training: False})
+
+    def feats_loss(self, real_feats, fake_feats):
+        losses = tf.constant(0.)
+
+        for real_feat, fake_feat in zip(real_feats, fake_feats):
+            losses += tf.reduce_mean(
+                tf.losses.mean_squared_error(real_feat, fake_feat))
+        return losses
