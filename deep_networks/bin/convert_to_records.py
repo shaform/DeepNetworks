@@ -21,7 +21,9 @@ def parse_args():
     parser.add_argument('directory', help='Directory of images')
     parser.add_argument('outfile', help='Output tfrecords')
     parser.add_argument(
-        '--use-mnist', action='store_true', help='Use MNIST dataset')
+        '--use-mnist',
+        choices=('train', 'test', 'validation'),
+        help='Use MNIST dataset')
     parser.add_argument(
         '--target-height', type=int, default=64, help='Target height')
     parser.add_argument(
@@ -29,22 +31,28 @@ def parse_args():
     return parser.parse_args()
 
 
-def read_mnist(path):
+def read_mnist(path, split):
     """Read MNIST images and normalize the data
 
     :param path: directory of MNIST data
     """
     mnist = input_data.read_data_sets(path)
-    images = (mnist.train.images.reshape((-1, 28,
-                                          28)) * 255.0).astype(np.uint8)
-    labels = mnist.train.labels
+    if split == 'train':
+        data = mnist.train
+    elif split == 'validation':
+        data = mnist.validation
+    elif split == 'test':
+        data = mnist.test
+
+    images = (data.images.reshape((-1, 28, 28)) * 255.0).astype(np.uint8)
+    labels = data.labels
     return images, labels
 
 
 def main():
     args = parse_args()
     if args.use_mnist:
-        images, labels = read_mnist(args.directory)
+        images, labels = read_mnist(args.directory, args.use_mnist)
 
         if args.target_width != 28 or args.target_width != 28:
             images = np.vstack([
