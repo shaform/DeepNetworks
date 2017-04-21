@@ -4,6 +4,7 @@ Convert images to TFRecords
 """
 
 import argparse
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -24,6 +25,7 @@ def parse_args():
         '--use-mnist',
         choices=('train', 'test', 'validation'),
         help='Use MNIST dataset')
+    parser.add_argument('--limit-size', type=int)
     parser.add_argument(
         '--target-height', type=int, default=64, help='Target height')
     parser.add_argument(
@@ -50,6 +52,7 @@ def read_mnist(path, split):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     args = parse_args()
     if args.use_mnist:
         images, labels = read_mnist(args.directory, args.use_mnist)
@@ -61,7 +64,11 @@ def main():
             ])
         images = images.reshape((-1, args.target_height, args.target_width, 1))
 
-        data_util.save_image_as_tfrecords(args.outfile, images, labels)
+        total_examples = data_util.save_image_as_tfrecords(
+            args.outfile,
+            images,
+            labels,
+            num_examples_per_label=args.limit_size)
     else:
         filename_queue = data_util.list_files_as_filename_queue(
             args.directory, num_epochs=1)
@@ -85,11 +92,12 @@ def main():
                 except tf.errors.OutOfRangeError:
                     pass
 
-            data_util.save_image_as_tfrecords(args.outfile,
-                                              tqdm.tqdm(_produce_images()))
+            total_examples = data_util.save_image_as_tfrecords(
+                args.outfile, tqdm.tqdm(_produce_images()))
 
             coord.request_stop()
             coord.join(threads)
+    logging.info('totally %d examples saved', total_examples)
 
 
 if __name__ == '__main__':

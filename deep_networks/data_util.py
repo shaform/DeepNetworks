@@ -4,6 +4,8 @@ import itertools
 import math
 import os
 
+from collections import defaultdict
+
 import numpy as np
 import tensorflow as tf
 
@@ -178,6 +180,7 @@ def save_image_as_tfrecords(
         images,
         labels=None,
         num_examples=None,
+        num_examples_per_label=None,
         compression_type=tf.python_io.TFRecordCompressionType.GZIP):
     """Convert all images to TFRecords and save to path
 
@@ -194,7 +197,13 @@ def save_image_as_tfrecords(
         path, options=tf.python_io.TFRecordOptions(compression_type))
 
     index = 0
+    counts = defaultdict(int)
     for image, label in zip(images, labels):
+        if num_examples_per_label is not None:
+            if counts[label] < num_examples_per_label:
+                counts[label] += 1
+            else:
+                continue
         height, width, channel = image.shape
         image_raw = image.tostring()
         feature = {
@@ -214,6 +223,7 @@ def save_image_as_tfrecords(
         if num_examples is not None and index >= num_examples:
             break
     writer.close()
+    return index
 
 
 def norm_image(image):

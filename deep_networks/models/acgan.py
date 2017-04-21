@@ -2,8 +2,6 @@
 Auxiliary Classifier Generative Adversarial Networks
 """
 
-import functools
-import operator
 import os
 import time
 
