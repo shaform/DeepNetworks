@@ -22,19 +22,18 @@ def build_basic_generator(z,
                           num_classes,
                           name='generator',
                           reuse=False,
-                          stddev=0.02,
                           dim=128,
                           num_layers=3,
                           skip_first_batch=False,
                           activation_fn=None):
     assert num_layers > 0
-    xavier_initializer = tf.contrib.layers.xavier_initializer()
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         with tf.variable_scope('codes'):
             codes = tf.get_variable(
                 'codes', [num_classes, z.get_shape()[1]],
-                initializer=xavier_initializer,
+                initializer=initializer,
                 regularizer=tf.contrib.layers.l2_regularizer(0.8))
             z_c = tf.nn.embedding_lookup(codes, c)
             outputs = tf.multiply(z, z_c)
@@ -46,7 +45,6 @@ def build_basic_generator(z,
         output_shape=output_shape,
         name=name,
         reuse=reuse,
-        stddev=stddev,
         dim=dim,
         num_layers=num_layers,
         skip_first_batch=skip_first_batch,
@@ -61,7 +59,6 @@ def build_basic_discriminator(X,
                               input_shape=None,
                               name='discriminator',
                               reuse=False,
-                              stddev=0.02,
                               dim=128,
                               num_layers=3,
                               activation_fn=tf.nn.sigmoid,
@@ -74,7 +71,6 @@ def build_basic_discriminator(X,
         input_shape=input_shape,
         name=name,
         reuse=reuse,
-        stddev=stddev,
         dim=dim,
         num_layers=num_layers,
         activation_fn=activation_fn,
@@ -89,20 +85,19 @@ def build_resize_conv_generator(z,
                                 num_classes,
                                 name='generator',
                                 reuse=False,
-                                stddev=0.02,
                                 min_size=4,
                                 dim=128,
                                 num_layers=3,
                                 skip_first_batch=False,
                                 activation_fn=None):
     assert num_layers > 0
-    xavier_initializer = tf.contrib.layers.xavier_initializer()
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         with tf.variable_scope('codes'):
             codes = tf.get_variable(
                 'codes', [num_classes, z.get_shape()[1]],
-                initializer=xavier_initializer,
+                initializer=initializer,
                 regularizer=tf.contrib.layers.l2_regularizer(0.8))
             z_c = tf.nn.embedding_lookup(codes, c)
             outputs = tf.multiply(z, z_c)
@@ -114,7 +109,6 @@ def build_resize_conv_generator(z,
         output_shape=output_shape,
         name=name,
         reuse=reuse,
-        stddev=stddev,
         min_size=min_size,
         dim=dim,
         num_layers=num_layers,
@@ -130,7 +124,6 @@ def build_conv_discriminator(X,
                              num_classes=None,
                              name='discriminator',
                              reuse=False,
-                             stddev=0.02,
                              dim=64,
                              num_layers=4,
                              activation_fn=tf.nn.sigmoid,
@@ -143,7 +136,6 @@ def build_conv_discriminator(X,
         num_classes=num_classes,
         name=name,
         reuse=reuse,
-        stddev=stddev,
         dim=dim,
         num_layers=num_layers,
         activation_fn=activation_fn,

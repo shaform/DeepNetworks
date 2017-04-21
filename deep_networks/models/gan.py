@@ -22,14 +22,13 @@ def build_basic_generator(z,
                           output_shape,
                           name='generator',
                           reuse=False,
-                          stddev=0.02,
                           dim=128,
                           num_layers=3,
                           skip_first_batch=False,
                           activation_fn=None):
     assert num_layers > 0
     output_size = functools.reduce(operator.mul, output_shape)
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = z
@@ -71,13 +70,12 @@ def build_basic_discriminator(X,
                               return_features=False,
                               name='discriminator',
                               reuse=False,
-                              stddev=0.02,
                               dim=128,
                               num_layers=3,
                               activation_fn=tf.nn.sigmoid,
                               class_activation_fn=tf.nn.softmax):
     assert num_layers > 0
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = X
@@ -138,7 +136,6 @@ def build_resize_conv_generator(z,
                                 output_shape,
                                 name='generator',
                                 reuse=False,
-                                stddev=0.02,
                                 min_size=4,
                                 dim=128,
                                 num_layers=3,
@@ -146,7 +143,7 @@ def build_resize_conv_generator(z,
                                 activation_fn=None):
     assert num_layers > 1
     target_h, target_w, target_c = output_shape
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         fc = z
@@ -213,13 +210,12 @@ def build_conv_discriminator(X,
                              return_features=False,
                              name='discriminator',
                              reuse=False,
-                             stddev=0.02,
                              dim=64,
                              num_layers=4,
                              activation_fn=tf.nn.sigmoid,
                              class_activation_fn=tf.nn.softmax):
     assert num_layers > 0
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = tf.reshape(X, (-1, ) + input_shape)

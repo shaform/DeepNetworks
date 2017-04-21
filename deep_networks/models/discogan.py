@@ -18,7 +18,6 @@ def build_conv_resize_conv_generator(X,
                                      output_shape,
                                      name='generator',
                                      reuse=False,
-                                     stddev=0.02,
                                      min_size=4,
                                      dim=32,
                                      num_layers=4,
@@ -26,7 +25,7 @@ def build_conv_resize_conv_generator(X,
                                      activation_fn=None):
     assert num_layers > 0
     target_h, target_w, target_c = output_shape
-    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    initializer = tf.contrib.layers.xavier_initializer()
 
     with tf.variable_scope(name, reuse=reuse):
         outputs = tf.reshape(X, (-1, ) + output_shape)
