@@ -140,6 +140,7 @@ class ACGAN(GANModel):
                  output_shape,
                  reg_const=5e-5,
                  code_reg_const=0.8,
+                 stddev=0.02,
                  z_dim=10,
                  g_dim=32,
                  d_dim=32,
@@ -198,6 +199,7 @@ class ACGAN(GANModel):
             ])
             self.code_regularizer = tf.contrib.layers.l2_regularizer(
                 scale=code_reg_const)
+            self.initializer = tf.truncated_normal_initializer(stddev=stddev)
 
             self._build_GAN(generator_cls, discriminator_cls)
             self._build_losses()
@@ -215,6 +217,7 @@ class ACGAN(GANModel):
             output_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             code_regularizer=self.code_regularizer,
             dim=self.g_dim,
             name='generator')
@@ -225,6 +228,7 @@ class ACGAN(GANModel):
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             name='discriminator')
         self.d_fake = discriminator_cls(
@@ -233,6 +237,7 @@ class ACGAN(GANModel):
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='discriminator')
