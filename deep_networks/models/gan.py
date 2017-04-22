@@ -307,6 +307,7 @@ class GAN(GANModel):
                  num_examples,
                  output_shape,
                  reg_const=5e-5,
+                 stddev=None,
                  z_dim=10,
                  g_dim=32,
                  d_dim=32,
@@ -328,6 +329,7 @@ class GAN(GANModel):
                 num_examples=num_examples,
                 output_shape=output_shape,
                 reg_const=reg_const,
+                stddev=stddev,
                 batch_size=batch_size,
                 image_summary=image_summary)
 
@@ -366,6 +368,7 @@ class GAN(GANModel):
             is_training=self.is_training,
             output_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             name='generator')
 
@@ -374,6 +377,7 @@ class GAN(GANModel):
             is_training=self.is_training,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             name='discriminator')
         self.d_fake = discriminator_cls(
@@ -381,6 +385,7 @@ class GAN(GANModel):
             is_training=self.is_training,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='discriminator')
@@ -401,8 +406,7 @@ class GAN(GANModel):
 
             g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.g_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, g_reg_ops) if g_reg_ops else 0.0
+            self.g_reg_loss = tf.add_n(g_reg_ops) if g_reg_ops else 0.0
 
             self.g_total_loss = self.g_loss + self.g_reg_loss
 
@@ -424,8 +428,7 @@ class GAN(GANModel):
 
             d_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.d_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, d_reg_ops) if d_reg_ops else 0.0
+            self.d_reg_loss = tf.add_n(d_reg_ops) if d_reg_ops else 0.0
 
             self.d_total_loss = self.d_loss + self.d_reg_loss
 
@@ -474,7 +477,7 @@ class GAN(GANModel):
         with tf.variable_scope('discriminator') as scope:
             update_ops_d = tf.get_collection(
                 tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-            with tf.control_dependencies(update_ops_d):
+            with tf.control_dependencies(update_ops_d + update_ops_g):
                 self.d_optim = tf.train.AdamOptimizer(
                     self.d_learning_rate, beta1=self.d_beta1).minimize(
                         self.d_total_loss, var_list=self.d_vars)

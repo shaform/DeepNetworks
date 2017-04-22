@@ -140,7 +140,7 @@ class ACGAN(GANModel):
                  output_shape,
                  reg_const=5e-5,
                  code_reg_const=0.8,
-                 stddev=0.02,
+                 stddev=None,
                  z_dim=10,
                  g_dim=32,
                  d_dim=32,
@@ -162,6 +162,7 @@ class ACGAN(GANModel):
                 num_examples=num_examples,
                 output_shape=output_shape,
                 reg_const=reg_const,
+                stddev=stddev,
                 batch_size=batch_size,
                 image_summary=image_summary)
 
@@ -199,7 +200,6 @@ class ACGAN(GANModel):
             ])
             self.code_regularizer = tf.contrib.layers.l2_regularizer(
                 scale=code_reg_const)
-            self.initializer = tf.truncated_normal_initializer(stddev=stddev)
 
             self._build_GAN(generator_cls, discriminator_cls)
             self._build_losses()
@@ -263,8 +263,7 @@ class ACGAN(GANModel):
 
             g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.g_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, g_reg_ops) if g_reg_ops else 0.0
+            self.g_reg_loss = tf.add_n(g_reg_ops) if g_reg_ops else 0.0
 
             self.g_total_loss = self.g_loss + self.g_c_loss + self.g_reg_loss
 
@@ -302,8 +301,7 @@ class ACGAN(GANModel):
 
             d_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.d_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, d_reg_ops) if d_reg_ops else 0.0
+            self.d_reg_loss = tf.add_n(d_reg_ops) if d_reg_ops else 0.0
 
             self.d_total_loss = self.d_loss + self.d_c_loss + self.d_reg_loss
 
@@ -368,7 +366,7 @@ class ACGAN(GANModel):
         with tf.variable_scope('discriminator') as scope:
             update_ops_d = tf.get_collection(
                 tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-            with tf.control_dependencies(update_ops_d):
+            with tf.control_dependencies(update_ops_d + update_ops_g):
                 self.d_optim = tf.train.AdamOptimizer(
                     self.d_learning_rate, beta1=self.d_beta1).minimize(
                         self.d_total_loss, var_list=self.d_vars)

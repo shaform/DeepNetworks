@@ -94,6 +94,7 @@ class DiscoGAN(GANModel):
                  x_output_shape,
                  y_output_shape,
                  reg_const=5e-5,
+                 stddev=None,
                  g_dim=32,
                  d_dim=32,
                  batch_size=128,
@@ -113,6 +114,7 @@ class DiscoGAN(GANModel):
                 num_examples=num_examples,
                 output_shape=None,
                 reg_const=reg_const,
+                stddev=stddev,
                 batch_size=batch_size,
                 image_summary=image_summary)
 
@@ -150,6 +152,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             output_shape=self.x_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             skip_first_batch=True,
             name='x_generator')
@@ -158,6 +161,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             output_shape=self.y_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             skip_first_batch=True,
             name='y_generator')
@@ -168,6 +172,7 @@ class DiscoGAN(GANModel):
             output_shape=self.x_output_shape,
             updates_collections=self.updates_collections_noop,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             reuse=True,
             skip_first_batch=True,
@@ -178,6 +183,7 @@ class DiscoGAN(GANModel):
             output_shape=self.y_output_shape,
             updates_collections=self.updates_collections_noop,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             reuse=True,
             skip_first_batch=True,
@@ -188,6 +194,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             name='x_discriminator')
 
@@ -196,6 +203,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             name='y_discriminator')
 
@@ -204,6 +212,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='x_discriminator')
@@ -213,6 +222,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='y_discriminator')
@@ -222,6 +232,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='x_discriminator')
@@ -231,6 +242,7 @@ class DiscoGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             reuse=True,
             name='y_discriminator')
@@ -263,8 +275,7 @@ class DiscoGAN(GANModel):
 
             x_g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.x_g_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, x_g_reg_ops) if x_g_reg_ops else 0.0
+            self.x_g_reg_loss = tf.add_n(x_g_reg_ops) if x_g_reg_ops else 0.0
 
         with tf.variable_scope('y_generator') as scope:
             self.y_recon_loss = tf.reduce_sum(
@@ -280,8 +291,7 @@ class DiscoGAN(GANModel):
 
             y_g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.y_g_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, y_g_reg_ops) if y_g_reg_ops else 0.0
+            self.y_g_reg_loss = tf.add_n(y_g_reg_ops) if y_g_reg_ops else 0.0
 
         if self.d_label_smooth > 0.0:
             labels_real = tf.ones_like(
@@ -300,8 +310,7 @@ class DiscoGAN(GANModel):
 
             x_d_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.x_d_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, x_d_reg_ops) if x_d_reg_ops else 0.0
+            self.x_d_reg_loss = tf.add_n(x_d_reg_ops) if x_d_reg_ops else 0.0
         with tf.variable_scope('y_discriminator') as scope:
             self.y_d_loss_real = tf.reduce_mean(
                 tf.nn.sigmoid_cross_entropy_with_logits(
@@ -313,8 +322,7 @@ class DiscoGAN(GANModel):
 
             y_d_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.y_d_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, y_d_reg_ops) if y_d_reg_ops else 0.0
+            self.y_d_reg_loss = tf.add_n(y_d_reg_ops) if y_d_reg_ops else 0.0
 
         self.g_total_loss = (
             self.x_g_loss + self.y_g_loss + self.x_recon_loss +

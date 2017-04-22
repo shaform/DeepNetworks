@@ -20,6 +20,7 @@ class WGAN(GANModel):
                  num_examples,
                  output_shape,
                  reg_const=5e-5,
+                 stddev=None,
                  z_dim=10,
                  g_dim=32,
                  d_dim=32,
@@ -44,6 +45,7 @@ class WGAN(GANModel):
                 num_examples=num_examples,
                 output_shape=output_shape,
                 reg_const=reg_const,
+                stddev=stddev,
                 batch_size=batch_size,
                 image_summary=image_summary)
 
@@ -87,6 +89,7 @@ class WGAN(GANModel):
             is_training=self.is_training,
             output_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.g_dim,
             name='generator')
 
@@ -95,6 +98,7 @@ class WGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             activation_fn=None,
             skip_last_biases=True,
@@ -104,6 +108,7 @@ class WGAN(GANModel):
             is_training=self.is_training,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
+            initializer=self.initializer,
             dim=self.d_dim,
             activation_fn=None,
             skip_last_biases=True,
@@ -123,8 +128,7 @@ class WGAN(GANModel):
 
             g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.g_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, g_reg_ops) if g_reg_ops else 0.0
+            self.g_reg_loss = tf.add_n(g_reg_ops) if g_reg_ops else 0.0
 
             self.g_total_loss = self.g_loss + self.g_reg_loss
 
@@ -135,8 +139,7 @@ class WGAN(GANModel):
 
             d_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.d_reg_loss = tf.contrib.layers.apply_regularization(
-                self.regularizer, d_reg_ops) if d_reg_ops else 0.0
+            self.d_reg_loss = tf.add_n(d_reg_ops) if d_reg_ops else 0.0
 
             self.d_total_loss = self.d_loss + self.d_reg_loss
 

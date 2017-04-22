@@ -74,7 +74,7 @@ class GANModel(Model):
     """GANModel"""
 
     def __init__(self, sess, name, num_examples, output_shape, reg_const,
-                 batch_size, image_summary):
+                 stddev, batch_size, image_summary):
         super().__init__(sess=sess, name=name)
 
         self.output_shape = output_shape
@@ -85,4 +85,9 @@ class GANModel(Model):
 
         self.is_training = tf.placeholder_with_default(
             True, [], name='is_training')
-        self.regularizer = tf.contrib.layers.l2_regularizer(scale=reg_const)
+        self.regularizer = tf.contrib.layers.l2_regularizer(
+            scale=reg_const) if reg_const > 0.0 else None
+        self.initializer = tf.truncated_normal_initializer(
+            stddev=stddev
+        ) if stddev is not None else tf.contrib.layers.xavier_initializer(
+            uniform=False)
