@@ -105,29 +105,112 @@ def build_resize_conv_generator(z,
     return outputs, codes
 
 
-def build_conv_discriminator(X,
-                             is_training,
-                             updates_collections,
-                             input_shape,
-                             num_classes=None,
-                             name='discriminator',
-                             reuse=False,
-                             dim=64,
-                             num_layers=4,
-                             activation_fn=tf.nn.sigmoid,
-                             class_activation_fn=tf.nn.softmax):
-    return gan.build_conv_discriminator(
-        X=X,
-        is_training=is_training,
-        updates_collections=updates_collections,
-        input_shape=input_shape,
-        num_classes=num_classes,
-        name=name,
-        reuse=reuse,
-        dim=dim,
-        num_layers=num_layers,
-        activation_fn=activation_fn,
-        class_activation_fn=class_activation_fn)
+class ConvTransposeGenerator(gan.ConvTransposeGenerator):
+    """ConvTransposeGenerator"""
+
+    def __init__(self,
+                 z,
+                 c,
+                 is_training,
+                 output_shape,
+                 num_classes,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 code_regularizer=None,
+                 regularizer=None,
+                 name='generator',
+                 reuse=False,
+                 min_size=4,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 skip_first_batch=False,
+                 use_fused_batch_norm=True,
+                 activation_fn=tf.nn.tanh):
+        assert num_layers > 0
+
+        with tf.variable_scope(name, reuse=reuse):
+            with tf.variable_scope('codes'):
+                self.codes = tf.get_variable(
+                    'codes', [num_classes, z.get_shape()[1]],
+                    initializer=initializer,
+                    regularizer=code_regularizer)
+                z_c = tf.nn.embedding_lookup(self.codes, c)
+                outputs = tf.multiply(z, z_c)
+
+        super().__init__(
+            z=outputs,
+            is_training=is_training,
+            output_shape=output_shape,
+            updates_collections=updates_collections,
+            initializer=initializer,
+            regularizer=regularizer,
+            name=name,
+            reuse=reuse,
+            min_size=min_size,
+            dim=dim,
+            max_dim=max_dim,
+            num_layers=num_layers,
+            skip_first_batch=skip_first_batch,
+            use_fused_batch_norm=use_fused_batch_norm,
+            activation_fn=activation_fn)
+
+
+class ResizeConvGenerator(gan.ResizeConvGenerator):
+    """ResizeConvGenerator"""
+
+    def __init__(self,
+                 z,
+                 c,
+                 is_training,
+                 output_shape,
+                 num_classes,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 code_regularizer=None,
+                 regularizer=None,
+                 name='generator',
+                 reuse=False,
+                 min_size=4,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 skip_first_batch=False,
+                 use_fused_batch_norm=True,
+                 activation_fn=tf.nn.tanh):
+        assert num_layers > 0
+
+        with tf.variable_scope(name, reuse=reuse):
+            with tf.variable_scope('codes'):
+                self.codes = tf.get_variable(
+                    'codes', [num_classes, z.get_shape()[1]],
+                    initializer=initializer,
+                    regularizer=code_regularizer)
+                z_c = tf.nn.embedding_lookup(self.codes, c)
+                outputs = tf.multiply(z, z_c)
+
+        super().__init__(
+            z=outputs,
+            is_training=is_training,
+            output_shape=output_shape,
+            updates_collections=updates_collections,
+            initializer=initializer,
+            regularizer=regularizer,
+            name=name,
+            reuse=reuse,
+            min_size=min_size,
+            dim=dim,
+            max_dim=max_dim,
+            num_layers=num_layers,
+            skip_first_batch=skip_first_batch,
+            use_fused_batch_norm=use_fused_batch_norm,
+            activation_fn=activation_fn)
+
+
+class ConvDiscriminator(gan.ConvDiscriminator):
+    pass
 
 
 class ACGAN(GANModel):

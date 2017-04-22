@@ -1,6 +1,5 @@
 import datetime
 import functools
-import math
 import operator
 import os
 
@@ -12,77 +11,97 @@ from ..ops import lrelu
 from ..train import IncrementalAverage
 
 
-def build_conv_resize_conv_generator(X,
-                                     is_training,
-                                     updates_collections,
-                                     output_shape,
-                                     name='generator',
-                                     reuse=False,
-                                     min_size=4,
-                                     dim=32,
-                                     num_layers=4,
-                                     skip_first_batch=False,
-                                     activation_fn=None):
-    assert num_layers > 0
-    target_h, target_w, target_c = output_shape
-    initializer = tf.contrib.layers.xavier_initializer()
+class ConvResizeConvGenerator(object):
+    def __init__(self,
+                 z,
+                 is_training,
+                 output_shape,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 regularizer=None,
+                 name='generator',
+                 reuse=False,
+                 min_size=4,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 skip_first_batch=False,
+                 use_fused_batch_norm=True,
+                 activation_fn=tf.nn.tanh):
+        assert num_layers > 0
+        self.output_shape = output_shape
+        self.output_size = functools.reduce(operator.mul, output_shape)
+        target_h, target_w, target_c = output_shape
+        normalizer_fn = tf.contrib.layers.batch_norm
+        normalizer_params = {
+            'is_training': is_training,
+            'updates_collections': updates_collections
+        }
+        min_h, min_w, min_dim = target_h, target_w, dim
 
-    with tf.variable_scope(name, reuse=reuse):
-        outputs = tf.reshape(X, (-1, ) + output_shape)
-        for i in range(num_layers):
-            with tf.variable_scope('d_conv{}'.format(i + 1)):
-                if i == 0:
-                    normalizer_fn = normalizer_params = None
-                else:
-                    normalizer_fn = tf.contrib.layers.batch_norm
-                    normalizer_params = {
-                        'is_training': is_training,
-                        'updates_collections': updates_collections
-                    }
-                outputs = tf.layers.conv2d(
-                    inputs=outputs,
-                    filters=dim,
-                    kernel_size=4,
-                    strides=2,
-                    padding='SAME',
-                    activation=None,
-                    kernel_initializer=initializer)
-                if normalizer_fn is not None:
-                    outputs = normalizer_fn(outputs, **normalizer_params)
-                outputs = lrelu(outputs)
-                dim *= 2
+        with tf.variable_scope(name, reuse=reuse):
+            outputs = tf.reshape(z, (-1, ) + output_shape)
+            for i in range(num_layers):
+                with tf.variable_scope('conv{}'.format(i + 1)):
+                    stride = [1, 1]
+                    if min_h % 2 == 0 and min_h / 2 >= min_size:
+                        min_h //= 2
+                        stride[0] = 2
+                    if min_w % 2 == 0 and min_w / 2 >= min_size:
+                        min_w //= 2
+                        stride[1] = 2
 
-        dim /= 4
-        for i in range(num_layers):
-            with tf.variable_scope('g_rs_conv{}'.format(i + 1)):
-                if i == num_layers - 1:
-                    normalizer_fn = normalizer_params = None
-                else:
-                    normalizer_fn = tf.contrib.layers.batch_norm
-                    normalizer_params = {
-                        'is_training': is_training,
-                        'updates_collections': updates_collections
-                    }
+                    if skip_first_batch:
+                        layer_normalizer_fn = layer_normalizer_params = None
+                    else:
+                        layer_normalizer_fn = normalizer_fn
+                        layer_normalizer_params = normalizer_params
 
-                h = max(min_size,
-                        int(math.ceil(target_h / (2**(num_layers - 1 - i)))))
-                w = max(min_size,
-                        int(math.ceil(target_w / (2**(num_layers - 1 - i)))))
-                c = dim if i != num_layers - 1 else target_c
-                outputs = tf.image.resize_nearest_neighbor(outputs, (h, w))
-                outputs = tf.layers.conv2d(
-                    inputs=outputs,
-                    filters=c,
-                    kernel_size=4,
-                    strides=1,
-                    padding='SAME',
-                    activation=None,
-                    kernel_initializer=initializer)
-                if normalizer_fn is not None:
-                    outputs = normalizer_fn(outputs, **normalizer_params)
-                    outputs = tf.nn.relu(outputs)
-                dim /= 2
-        return tf.nn.tanh(tf.contrib.layers.flatten(outputs))
+                    outputs = tf.contrib.layers.conv2d(
+                        inputs=outputs,
+                        num_outputs=min_dim,
+                        kernel_size=(4, 4),
+                        stride=stride,
+                        padding='SAME',
+                        activation_fn=lrelu,
+                        normalizer_fn=layer_normalizer_fn,
+                        normalizer_params=layer_normalizer_params,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer)
+                    min_dim = min(2 * min_dim, max_dim)
+
+            min_dim = dim
+            for i in range(num_layers):
+                with tf.variable_scope('rs_conv{}'.format(i + 1)):
+                    min_h = min(target_h, min_h * 2)
+                    min_w = min(target_w, min_w * 2)
+
+                    if i == num_layers - 1:
+                        layer_normalizer_fn = layer_normalizer_params = None
+                        min_dim = target_c
+                        layer_activation_fn = activation_fn
+                    else:
+                        layer_normalizer_fn = normalizer_fn
+                        layer_normalizer_params = normalizer_params
+                        layer_activation_fn = tf.nn.relu
+
+                    outputs = tf.image.resize_nearest_neighbor(
+                        outputs, (min_h, min_w), name='resize')
+                    outputs = tf.contrib.layers.conv2d(
+                        inputs=outputs,
+                        num_outputs=min_dim,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding='SAME',
+                        activation_fn=layer_activation_fn,
+                        normalizer_fn=layer_normalizer_fn,
+                        normalizer_params=layer_normalizer_params,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer)
+                    min_dim = min(2 * min_dim, max_dim)
+
+            self.outputs = tf.contrib.layers.flatten(outputs)
 
 
 class DiscoGAN(GANModel):

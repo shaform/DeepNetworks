@@ -4,7 +4,6 @@ Generative Adversarial Networks
 
 import datetime
 import functools
-import math
 import operator
 import os
 
@@ -154,150 +153,263 @@ class BasicDiscriminator(object):
                     ) if class_activation_fn else self.outputs_c
 
 
-def build_resize_conv_generator(z,
-                                is_training,
-                                updates_collections,
-                                output_shape,
-                                name='generator',
-                                reuse=False,
-                                min_size=4,
-                                dim=128,
-                                num_layers=3,
-                                skip_first_batch=False,
-                                activation_fn=None):
-    assert num_layers > 1
-    target_h, target_w, target_c = output_shape
-    initializer = tf.contrib.layers.xavier_initializer()
+class ConvTransposeGenerator(object):
+    def __init__(self,
+                 z,
+                 is_training,
+                 output_shape,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 regularizer=None,
+                 name='generator',
+                 reuse=False,
+                 min_size=4,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 skip_first_batch=False,
+                 use_fused_batch_norm=True,
+                 activation_fn=tf.nn.tanh):
+        assert num_layers > 1
+        self.output_shape = output_shape
+        self.output_size = functools.reduce(operator.mul, output_shape)
+        target_h, target_w, target_c = output_shape
+        normalizer_fn = tf.contrib.layers.batch_norm
+        normalizer_params = {
+            'is_training': is_training,
+            'updates_collections': updates_collections
+        }
+        if use_fused_batch_norm:
+            normalizer_params['fused'] = True
 
-    with tf.variable_scope(name, reuse=reuse):
-        fc = z
-        h = max(min_size, int(math.ceil(target_h / (2**(num_layers - 1)))))
-        w = max(min_size, int(math.ceil(target_w / (2**(num_layers - 1)))))
-        c = dim * (2**(num_layers - 2))
+        min_h, min_w = target_h, target_w
+        for _ in range(num_layers - 1):
+            if min_h % 2 == 0 and min_h / 2 >= min_size:
+                min_h //= 2
+            if min_w % 2 == 0 and min_w / 2 >= min_size:
+                min_w //= 2
 
-        with tf.variable_scope('fc'):
-            if skip_first_batch:
-                normalizer_fn = normalizer_params = None
-            else:
-                normalizer_fn = tf.contrib.layers.batch_norm
-                normalizer_params = {
-                    'is_training': is_training,
-                    'updates_collections': updates_collections
-                }
-            fc = tf.contrib.layers.fully_connected(
-                inputs=fc,
-                num_outputs=h * w * c,
-                activation_fn=tf.nn.relu,
-                normalizer_fn=normalizer_fn,
-                normalizer_params=normalizer_params,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer())
-            fc = tf.reshape(fc, (-1, h, w, c))
-        for i in range(num_layers - 1):
-            if i == num_layers - 2:
-                normalizer_fn = normalizer_params = None
-            else:
-                normalizer_fn = tf.contrib.layers.batch_norm
-                normalizer_params = {
-                    'is_training': is_training,
-                    'updates_collections': updates_collections
-                }
-
-            h = max(min_size,
-                    int(math.ceil(target_h / (2**(num_layers - 2 - i)))))
-            w = max(min_size,
-                    int(math.ceil(target_w / (2**(num_layers - 2 - i)))))
-            c = dim * (2**(
-                num_layers - 3 - i)) if i != num_layers - 2 else target_c
-            fc = tf.image.resize_nearest_neighbor(
-                fc, (h, w), name='g_rs_{}'.format(i + 1))
-            fc = tf.layers.conv2d(
-                inputs=fc,
-                filters=c,
-                kernel_size=(5, 5),
-                strides=(1, 1),
-                padding='SAME',
-                activation=None,
-                kernel_initializer=initializer,
-                name='d_conv{}'.format(i))
-            if normalizer_fn is not None:
-                fc = normalizer_fn(fc, **normalizer_params)
-                fc = tf.nn.relu(fc)
-        return tf.nn.tanh(tf.contrib.layers.flatten(fc))
-
-
-def build_conv_discriminator(X,
-                             is_training,
-                             updates_collections,
-                             input_shape,
-                             num_classes=None,
-                             return_features=False,
-                             name='discriminator',
-                             reuse=False,
-                             dim=64,
-                             num_layers=4,
-                             activation_fn=tf.nn.sigmoid,
-                             class_activation_fn=tf.nn.softmax):
-    assert num_layers > 0
-    initializer = tf.contrib.layers.xavier_initializer()
-
-    with tf.variable_scope(name, reuse=reuse):
-        outputs = tf.reshape(X, (-1, ) + input_shape)
-        features = []
-        for i in range(num_layers - 1):
-            with tf.variable_scope('d_conv{}'.format(i)):
-                if i == 0:
-                    normalizer_fn = normalizer_params = None
+        with tf.variable_scope(name, reuse=reuse):
+            outputs = z
+            with tf.variable_scope('fc'):
+                if skip_first_batch:
+                    layer_normalizer_fn = layer_normalizer_params = None
                 else:
-                    normalizer_fn = tf.contrib.layers.batch_norm
-                    normalizer_params = {
-                        'is_training': is_training,
-                        'updates_collections': updates_collections
-                    }
-                outputs = tf.layers.conv2d(
+                    layer_normalizer_fn = normalizer_fn
+                    layer_normalizer_params = normalizer_params
+                outputs = tf.contrib.layers.fully_connected(
                     inputs=outputs,
-                    filters=dim,
-                    kernel_size=(5, 5),
-                    strides=(2, 2),
-                    padding='SAME',
-                    activation=None,
-                    kernel_initializer=initializer)
-                if normalizer_fn is not None:
-                    outputs = normalizer_fn(outputs, **normalizer_params)
-                outputs = lrelu(outputs)
-                features.append(outputs)
-                dim *= 2
+                    num_outputs=dim * min_h * min_w,
+                    activation_fn=tf.nn.relu,
+                    normalizer_fn=layer_normalizer_fn,
+                    normalizer_params=layer_normalizer_params,
+                    weights_initializer=initializer,
+                    weights_regularizer=regularizer,
+                    biases_initializer=tf.zeros_initializer())
+                outputs = tf.reshape(outputs, (-1, min_h, min_w, dim))
+            for i in range(num_layers - 1):
+                with tf.variable_scope('convt{}'.format(i + 1)):
+                    stride = [2, 2]
+                    if min_h == target_h:
+                        stride[0] = 1
+                    if min_w == target_w:
+                        stride[1] = 1
+                    min_h = min(target_h, min_h * 2)
+                    min_w = min(target_w, min_w * 2)
 
-        outputs = tf.contrib.layers.flatten(outputs)
+                    if i == num_layers - 2:
+                        layer_normalizer_fn = layer_normalizer_params = None
+                        dim = target_c
+                        layer_activation_fn = activation_fn
+                    else:
+                        layer_normalizer_fn = normalizer_fn
+                        layer_normalizer_params = normalizer_params
+                        layer_activation_fn = tf.nn.relu
+                        dim = min(2 * dim, max_dim)
 
-        with tf.variable_scope('fc'):
-            fc_d = tf.contrib.layers.fully_connected(
-                inputs=outputs,
-                num_outputs=1,
-                activation_fn=None,
-                weights_initializer=initializer,
-                biases_initializer=tf.zeros_initializer())
-            act_d = activation_fn(fc_d) if activation_fn else fc_d
+                    outputs = tf.contrib.layers.conv2d_transpose(
+                        inputs=outputs,
+                        num_outputs=dim,
+                        kernel_size=(4, 4),
+                        stride=stride,
+                        padding='SAME',
+                        activation_fn=layer_activation_fn,
+                        normalizer_fn=layer_normalizer_fn,
+                        normalizer_params=layer_normalizer_params,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer)
 
-        if num_classes is None:
-            if return_features:
-                return act_d, fc_d, features
-            else:
-                return act_d, fc_d
-        else:
-            with tf.variable_scope('fc_c'):
-                fc_c = tf.contrib.layers.fully_connected(
+            self.outputs = tf.contrib.layers.flatten(outputs)
+
+
+class ResizeConvGenerator(object):
+    def __init__(self,
+                 z,
+                 is_training,
+                 output_shape,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 regularizer=None,
+                 name='generator',
+                 reuse=False,
+                 min_size=4,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 skip_first_batch=False,
+                 use_fused_batch_norm=True,
+                 activation_fn=tf.nn.tanh):
+        assert num_layers > 1
+        self.output_shape = output_shape
+        self.output_size = functools.reduce(operator.mul, output_shape)
+        target_h, target_w, target_c = output_shape
+        normalizer_fn = tf.contrib.layers.batch_norm
+        normalizer_params = {
+            'is_training': is_training,
+            'updates_collections': updates_collections
+        }
+        if use_fused_batch_norm:
+            normalizer_params['fused'] = True
+
+        min_h, min_w = target_h, target_w
+        for _ in range(num_layers - 1):
+            if min_h % 2 == 0 and min_h / 2 >= min_size:
+                min_h //= 2
+            if min_w % 2 == 0 and min_w / 2 >= min_size:
+                min_w //= 2
+
+        with tf.variable_scope(name, reuse=reuse):
+            outputs = z
+            with tf.variable_scope('fc'):
+                if skip_first_batch:
+                    layer_normalizer_fn = layer_normalizer_params = None
+                else:
+                    layer_normalizer_fn = normalizer_fn
+                    layer_normalizer_params = normalizer_params
+                outputs = tf.contrib.layers.fully_connected(
                     inputs=outputs,
-                    num_outputs=num_classes,
+                    num_outputs=dim * min_h * min_w,
+                    activation_fn=tf.nn.relu,
+                    normalizer_fn=layer_normalizer_fn,
+                    normalizer_params=layer_normalizer_params,
+                    weights_initializer=initializer,
+                    weights_regularizer=regularizer,
+                    biases_initializer=tf.zeros_initializer())
+                outputs = tf.reshape(outputs, (-1, min_h, min_w, dim))
+            for i in range(num_layers - 1):
+                with tf.variable_scope('rs_conv{}'.format(i + 1)):
+                    min_h = min(target_h, min_h * 2)
+                    min_w = min(target_w, min_w * 2)
+
+                    if i == num_layers - 2:
+                        layer_normalizer_fn = layer_normalizer_params = None
+                        dim = target_c
+                        layer_activation_fn = activation_fn
+                    else:
+                        layer_normalizer_fn = normalizer_fn
+                        layer_normalizer_params = normalizer_params
+                        layer_activation_fn = tf.nn.relu
+                        dim = min(2 * dim, max_dim)
+
+                    outputs = tf.image.resize_nearest_neighbor(
+                        outputs, (min_h, min_w), name='resize')
+                    outputs = tf.contrib.layers.conv2d(
+                        inputs=outputs,
+                        num_outputs=dim,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding='SAME',
+                        activation_fn=layer_activation_fn,
+                        normalizer_fn=layer_normalizer_fn,
+                        normalizer_params=layer_normalizer_params,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer)
+
+            self.outputs = tf.contrib.layers.flatten(outputs)
+
+
+class ConvDiscriminator(object):
+    def __init__(self,
+                 X,
+                 is_training,
+                 input_shape,
+                 num_classes=None,
+                 updates_collections=tf.GraphKeys.UPDATE_OPS,
+                 initializer=tf.contrib.layers.xavier_initializer(
+                     uniform=False),
+                 regularizer=None,
+                 name='discriminator',
+                 reuse=False,
+                 dim=32,
+                 max_dim=64,
+                 num_layers=3,
+                 use_fused_batch_norm=True,
+                 skip_last_biases=False,
+                 activation_fn=tf.nn.sigmoid,
+                 class_activation_fn=tf.nn.softmax):
+        assert num_layers > 0
+        self.input_shape = input_shape
+        self.input_size = functools.reduce(operator.mul, input_shape)
+        normalizer_fn = tf.contrib.layers.batch_norm
+        normalizer_params = {
+            'is_training': is_training,
+            'updates_collections': updates_collections
+        }
+        if use_fused_batch_norm:
+            normalizer_params['fused'] = True
+
+        with tf.variable_scope(name, reuse=reuse):
+            outputs = tf.reshape(X, (-1, ) + input_shape)
+            self.features = []
+            for i in range(num_layers - 1):
+                with tf.variable_scope('conv{}'.format(i + 1)):
+                    if i == 0:
+                        layer_normalizer_fn = layer_normalizer_params = None
+                    else:
+                        layer_normalizer_fn = normalizer_fn
+                        layer_normalizer_params = normalizer_params
+                    outputs = tf.contrib.layers.conv2d(
+                        inputs=outputs,
+                        num_outputs=dim,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding='SAME',
+                        activation_fn=lrelu,
+                        normalizer_fn=layer_normalizer_fn,
+                        normalizer_params=layer_normalizer_params,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer)
+                    self.features.append(outputs)
+                    dim = min(2 * dim, max_dim)
+
+            outputs = tf.contrib.layers.flatten(outputs)
+
+            with tf.variable_scope('outputs_d'):
+                biases_initializer = tf.zeros_initializer(
+                ) if not skip_last_biases else None
+                self.outputs_d = tf.contrib.layers.fully_connected(
+                    inputs=outputs,
+                    num_outputs=1,
                     activation_fn=None,
                     weights_initializer=initializer,
-                    biases_initializer=tf.zeros_initializer())
-                act_c = class_activation_fn(
-                    fc_c) if class_activation_fn else fc_c
-            if return_features:
-                return act_d, fc_d, act_c, fc_c, features
-            else:
-                return act_d, fc_d, act_c, fc_c
+                    biases_initializer=biases_initializer)
+                self.activations_d = activation_fn(
+                    self.outputs_d) if activation_fn else self.outputs_d
+
+            if num_classes is not None:
+                with tf.variable_scope('outputs_c'):
+                    self.outputs_c = tf.contrib.layers.fully_connected(
+                        inputs=outputs,
+                        num_outputs=num_classes,
+                        activation_fn=None,
+                        weights_initializer=initializer,
+                        weights_regularizer=regularizer,
+                        biases_initializer=tf.zeros_initializer())
+                    self.activations_c = class_activation_fn(
+                        self.outputs_c
+                    ) if class_activation_fn else self.outputs_c
 
 
 class GAN(GANModel):
