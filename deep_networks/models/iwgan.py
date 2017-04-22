@@ -8,17 +8,18 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from .base import Model
-from .gan import build_basic_discriminator, build_basic_generator
+from .base import GANModel
+from .gan import BasicGenerator, BasicDiscriminator
 from ..train import IncrementalAverage
 
 
-class WGAN(Model):
+class WGAN(GANModel):
     def __init__(self,
                  sess,
                  X_real,
                  num_examples,
                  output_shape,
+                 reg_const=5e-5,
                  z_dim=10,
                  g_dim=32,
                  d_dim=32,
@@ -26,23 +27,28 @@ class WGAN(Model):
                  batch_size=128,
                  g_learning_rate=0.0001,
                  g_beta1=0.5,
+                 g_beta2=0.9,
                  d_learning_rate=0.0001,
                  d_lambda=10.0,
                  d_beta1=0.5,
+                 d_beta2=0.9,
                  d_iters=5,
-                 d_high_iters=100,
+                 d_high_iters=0,
                  d_intial_high_rounds=25,
                  d_step_high_rounds=500,
-                 generator_fn=build_basic_generator,
-                 discriminator_fn=build_basic_discriminator,
+                 generator_cls=BasicGenerator,
+                 discriminator_cls=BasicDiscriminator,
                  image_summary=False,
                  name='iWGAN'):
-        with tf.variable_scope(name) as scope:
-            super().__init__(sess=sess, name=name)
-
-            self.output_shape = output_shape
-            self.batch_size = batch_size
-            self.num_examples = num_examples
+        with tf.variable_scope(name):
+            super().__init__(
+                sess=sess,
+                name=name,
+                num_examples=num_examples,
+                output_shape=output_shape,
+                reg_const=reg_const,
+                batch_size=batch_size,
+                image_summary=image_summary)
 
             self.z_stddev = z_stddev
             self.z_dim = z_dim
@@ -50,10 +56,12 @@ class WGAN(Model):
             self.g_dim = g_dim
             self.g_learning_rate = g_learning_rate
             self.g_beta1 = g_beta1
+            self.g_beta2 = g_beta2
 
             self.d_dim = d_dim
             self.d_learning_rate = d_learning_rate
             self.d_beta1 = d_beta1
+            self.d_beta2 = d_beta2
             self.d_lambda = d_lambda
             self.d_iters = 5
             self.d_high_iters = d_high_iters
@@ -69,65 +77,53 @@ class WGAN(Model):
                 stddev=z_stddev,
                 name='z',
                 dtype=tf.float32)
+            self.z = tf.placeholder_with_default(self.z, [None, z_dim])
             self.epsilon = tf.random_uniform(
                 (batch_size, 1),
                 minval=0.0,
                 maxval=1.0,
                 dtype=tf.float32,
                 name='epsilon')
-            self.is_training = tf.placeholder(tf.bool, [], name='is_training')
-            self.updates_collections_noop = 'updates_collections_noop'
 
-            self._build_GAN(generator_fn, discriminator_fn)
+            self._build_GAN(generator_cls, discriminator_cls)
+            self._build_losses()
+            self._build_optimizer()
             self._build_summary()
-            self._build_optimizer(scope)
 
             self.saver = tf.train.Saver()
-            tf.global_variables_initializer().run()
+            sess.run(tf.global_variables_initializer())
 
-    def _build_GAN(self, generator_fn, discriminator_fn):
-        self.g = generator_fn(
-            self.z,
-            self.is_training,
-            tf.GraphKeys.UPDATE_OPS,
-            self.output_shape,
+    def _build_GAN(self, generator_cls, discriminator_cls):
+        self.g = generator_cls(
+            z=self.z,
+            is_training=self.is_training,
+            output_shape=self.output_shape,
+            regularizer=self.regularizer,
             dim=self.g_dim,
+            use_fused_batch_norm=False,
             name='generator')
 
-        self.d_real, self.d_logits_real = discriminator_fn(
-            self.X,
-            self.is_training,
-            tf.GraphKeys.UPDATE_OPS,
+        self.d_real = discriminator_cls(
+            X=self.X,
+            is_training=self.is_training,
             input_shape=self.output_shape,
+            regularizer=self.regularizer,
             dim=self.d_dim,
             activation_fn=None,
+            skip_last_biases=True,
+            use_fused_batch_norm=False,
             name='discriminator')
-        self.d_fake, self.d_logits_fake = discriminator_fn(
-            self.g,
-            self.is_training,
-            tf.GraphKeys.UPDATE_OPS,
+        self.d_fake = discriminator_cls(
+            X=self.g.outputs,
+            is_training=self.is_training,
             input_shape=self.output_shape,
+            regularizer=self.regularizer,
             dim=self.d_dim,
             activation_fn=None,
+            skip_last_biases=True,
+            use_fused_batch_norm=False,
             reuse=True,
             name='discriminator')
-
-        self.X_c = self.X * self.epsilon + self.g * (1. - self.epsilon)
-        self.d_X_c, self.d_logits_X_c = discriminator_fn(
-            self.X_c,
-            self.is_training,
-            tf.GraphKeys.UPDATE_OPS,
-            input_shape=self.output_shape,
-            dim=self.d_dim,
-            activation_fn=None,
-            reuse=True,
-            name='discriminator')
-
-        self.g_loss = -tf.reduce_mean(self.d_logits_fake)
-
-        self.d_loss_real = tf.reduce_mean(self.d_logits_real)
-        self.d_loss_fake = tf.reduce_mean(self.d_logits_fake)
-        self.d_loss = self.d_loss_real - self.d_loss_fake
 
         with tf.variable_scope('generator') as scope:
             self.g_vars = tf.get_collection(
@@ -135,64 +131,106 @@ class WGAN(Model):
         with tf.variable_scope('discriminator') as scope:
             self.d_vars = tf.get_collection(
                 tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
+        self.X_hat = self.X * self.epsilon + self.g.outputs * (
+            1. - self.epsilon)
+        self.d_hat = discriminator_cls(
+            X=self.X_hat,
+            is_training=self.is_training,
+            input_shape=self.output_shape,
+            regularizer=self.regularizer,
+            dim=self.d_dim,
+            activation_fn=None,
+            skip_last_biases=True,
+            use_fused_batch_norm=False,
+            reuse=True,
+            name='discriminator')
 
-        self.d_grad = tf.gradients(self.d_logits_X_c, [
-            self.X_c,
-        ])[0]
+    def _build_losses(self):
+        with tf.variable_scope('generator') as scope:
+            self.g_loss = -tf.reduce_mean(self.d_fake.outputs_d)
 
-        self.d_loss_grad = self.d_lambda * tf.reduce_mean(
-            tf.square(tf.sqrt(tf.reduce_sum(tf.square(self.d_grad), 1)) - 1.0))
+            g_reg_ops = tf.get_collection(
+                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
+            self.g_reg_loss = tf.contrib.layers.apply_regularization(
+                self.regularizer, g_reg_ops) if g_reg_ops else 0.0
 
-        self.z_sampler = tf.placeholder(
-            tf.float32, [None, self.z_dim], name='z_sampler')
-        self.sampler = generator_fn(
-            self.z_sampler,
-            self.is_training,
-            self.updates_collections_noop,
-            self.output_shape,
-            dim=self.g_dim,
-            name='generator',
-            reuse=True)
+            self.g_total_loss = self.g_loss + self.g_reg_loss
+
+        with tf.variable_scope('discriminator') as scope:
+            self.d_loss_real = tf.reduce_mean(self.d_real.outputs_d)
+            self.d_loss_fake = tf.reduce_mean(self.d_fake.outputs_d)
+            self.d_loss = self.d_loss_fake - self.d_loss_real
+
+            self.d_grad = tf.gradients(self.d_hat.outputs_d, [
+                self.X_hat,
+            ])[0]
+
+            self.d_grad_loss = self.d_lambda * tf.reduce_mean(
+                tf.square(
+                    tf.sqrt(tf.reduce_sum(tf.square(self.d_grad), 1)) - 1.0))
+
+            d_reg_ops = tf.get_collection(
+                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
+            self.d_reg_loss = tf.contrib.layers.apply_regularization(
+                self.regularizer, d_reg_ops) if d_reg_ops else 0.0
+
+            self.d_total_loss = self.d_loss + self.d_grad_loss + self.d_reg_loss
 
     def _build_summary(self):
-        self.z_sum = tf.summary.histogram('z', self.z)
-        if self.image_summary:
-            self.g_sum = tf.summary.image(
-                'g', tf.reshape(self.g, (-1, ) + self.output_shape))
-        else:
-            self.g_sum = tf.summary.histogram('g', self.g)
-        self.d_real_sum = tf.summary.histogram('d_real', self.d_real)
-        self.d_fake_sum = tf.summary.histogram('d_fake', self.d_fake)
+        with tf.variable_scope('summary') as scope:
+            self.z_sum = tf.summary.histogram('z', self.z)
+            if self.image_summary:
+                self.g_sum = tf.summary.image('g',
+                                              tf.reshape(
+                                                  self.g.outputs,
+                                                  (-1, ) + self.output_shape))
+            else:
+                self.g_sum = tf.summary.histogram('g', self.g.outputs)
+            self.d_real_sum = tf.summary.histogram('d_real',
+                                                   self.d_real.activations_d)
+            self.d_fake_sum = tf.summary.histogram('d_fake',
+                                                   self.d_fake.activations_d)
 
-        self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
-        self.d_loss_sum = tf.summary.scalar('d_loss', self.d_loss)
+            self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
+            self.g_reg_loss_sum = tf.summary.scalar('g_reg_loss',
+                                                    self.g_reg_loss)
+            self.g_total_loss_sum = tf.summary.scalar('g_total_loss',
+                                                      self.g_total_loss)
+            self.d_loss_sum = tf.summary.scalar('d_loss', self.d_loss)
+            self.d_loss_real_sum = tf.summary.scalar('d_loss_real',
+                                                     self.d_loss_real)
+            self.d_loss_fake_sum = tf.summary.scalar('d_loss_fake',
+                                                     self.d_loss_fake)
+            self.d_grad_loss_sum = tf.summary.scalar('d_grad_loss',
+                                                     self.d_grad_loss)
+            self.d_reg_loss_sum = tf.summary.scalar('d_reg_loss',
+                                                    self.d_reg_loss)
+            self.d_total_loss_sum = tf.summary.scalar('d_total_loss',
+                                                      self.d_total_loss)
 
-        self.d_sum = tf.summary.merge(
-            [self.z_sum, self.d_real_sum, self.d_fake_sum, self.d_loss_sum])
-        self.summary = tf.summary.merge([
-            self.z_sum, self.d_real_sum, self.d_fake_sum, self.d_loss_sum,
-            self.g_sum, self.g_loss_sum
-        ])
+            self.summary = tf.summary.merge(
+                tf.get_collection(tf.GraphKeys.SUMMARIES, scope=scope.name))
 
-    def _build_optimizer(self, scope):
-        g_total_loss = self.g_loss
-        d_total_loss = -self.d_loss + self.d_loss_grad
-
-        with tf.variable_scope('generator') as g_scope:
+    def _build_optimizer(self):
+        with tf.variable_scope('generator') as scope:
             update_ops_g = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=g_scope.name)
-        with tf.control_dependencies(update_ops_g):
-            self.g_optim = tf.train.AdamOptimizer(
-                self.g_learning_rate, beta1=self.g_beta1).minimize(
-                    g_total_loss, var_list=self.g_vars)
+                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
+            with tf.control_dependencies(update_ops_g):
+                self.g_optim = tf.train.AdamOptimizer(
+                    self.g_learning_rate,
+                    beta1=self.g_beta1,
+                    beta2=self.g_beta2).minimize(
+                        self.g_total_loss, var_list=self.g_vars)
 
-        with tf.variable_scope('discriminator') as d_scope:
+        with tf.variable_scope('discriminator') as scope:
             update_ops_d = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
-        with tf.control_dependencies(update_ops_d + update_ops_g):
-            self.d_optim = tf.train.AdamOptimizer(
-                self.d_learning_rate, beta1=self.d_beta1).minimize(
-                    d_total_loss, var_list=self.d_vars)
+                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
+            with tf.control_dependencies(update_ops_d + update_ops_g):
+                self.d_optim = tf.train.AdamOptimizer(
+                    self.d_learning_rate,
+                    beta1=self.d_beta1,
+                    beta2=self.d_beta2).minimize(
+                        self.d_total_loss, var_list=self.d_vars)
 
     def train(self,
               num_epochs,
@@ -205,6 +243,8 @@ class WGAN(Model):
               log_dir='logs'):
         with tf.variable_scope(self.name):
             if log_dir is not None:
+                log_dir = os.path.join(log_dir, self.name)
+                os.makedirs(log_dir, exist_ok=True)
                 run_name = '{}_{}'.format(self.name, time.time())
                 log_path = os.path.join(log_dir, run_name)
                 self.writer = tf.summary.FileWriter(log_path, self.sess.graph)
@@ -233,32 +273,24 @@ class WGAN(Model):
                 self.d_step_high_rounds - 1) * self.d_iters
             for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
-                epoch_g_loss = IncrementalAverage()
-                epoch_d_loss = IncrementalAverage()
-                epoch_d_loss_grad = IncrementalAverage()
+                epoch_g_total_loss = IncrementalAverage()
+                epoch_d_total_loss = IncrementalAverage()
 
                 def train_D():
-                    _, d_loss, d_loss_grad, summary_str = self.sess.run(
-                        [
-                            self.d_optim, self.d_loss, self.d_loss_grad,
-                            self.d_sum
-                        ],
-                        feed_dict={self.is_training: True})
-                    epoch_d_loss.add(d_loss)
-                    epoch_d_loss_grad.add(d_loss_grad)
-                    return summary_str
+                    _, d_total_loss = self.sess.run(
+                        [self.d_optim, self.d_total_loss])
+                    epoch_d_total_loss.add(d_total_loss)
+                    return None
 
                 def train_D_G():
                     # Update generator
-                    _, _, d_loss, d_loss_grad, g_loss, summary_str = self.sess.run(
+                    _, _, d_total_loss, g_total_loss, summary_str = self.sess.run(
                         [
-                            self.d_optim, self.g_optim, self.d_loss,
-                            self.d_loss_grad, self.g_loss, self.summary
-                        ],
-                        feed_dict={self.is_training: True})
-                    epoch_d_loss.add(d_loss)
-                    epoch_d_loss_grad.add(d_loss_grad)
-                    epoch_g_loss.add(g_loss)
+                            self.d_optim, self.g_optim, self.d_total_loss,
+                            self.g_total_loss, self.summary
+                        ])
+                    epoch_d_total_loss.add(d_total_loss)
+                    epoch_g_total_loss.add(g_total_loss)
                     return summary_str
 
                 # the complicated loop is to achieve the following
@@ -300,7 +332,7 @@ class WGAN(Model):
                             # train G
                             summary_str = train_D_G()
 
-                    if self.writer:
+                    if self.writer and summary_str:
                         self.writer.add_summary(summary_str, step)
                     step += 1
 
@@ -317,25 +349,24 @@ class WGAN(Model):
                         sample_fn(self, step)
 
                     t.set_postfix(
-                        g_loss=epoch_g_loss.average,
-                        d_loss=epoch_d_loss.average,
-                        d_loss_grad=epoch_d_loss_grad.average)
+                        g_loss=epoch_g_total_loss.average,
+                        d_loss=epoch_d_total_loss.average)
 
     def sample(self, num_samples=None, z=None):
         if z is not None:
             return self.sess.run(
-                self.sampler,
-                feed_dict={self.is_training: False,
-                           self.z_sampler: z})
+                self.g.outputs, feed_dict={self.is_training: False,
+                                           self.z: z})
         elif num_samples is not None:
             return self.sess.run(
-                self.sampler,
+                self.g.outputs,
                 feed_dict={
                     self.is_training: False,
-                    self.z_sampler: self.sample_z(num_samples)
+                    self.z: self.sample_z(num_samples)
                 })
         else:
-            return self.sess.run(self.g, feed_dict={self.is_training: False})
+            return self.sess.run(
+                self.g.outputs, feed_dict={self.is_training: False})
 
     def sample_z(self, num_samples):
         return np.random.normal(0.0, self.z_stddev, (num_samples, self.z_dim))

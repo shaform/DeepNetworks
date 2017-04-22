@@ -34,7 +34,7 @@ def gaussian_mixture(num_clusters=5,
             maxval = num_clusters
         assert minval < maxval
         mixture_indices = tf.random_uniform(
-            (batch_size, 1), minval=minval, maxval=maxval, dtype=tf.int64)
+            (batch_size, 1), minval=minval, maxval=maxval, dtype=tf.int32)
         mixture_indices = tf.mod(mixture_indices, num_clusters)
         angles = tf.cast(mixture_indices,
                          tf.float32) / num_clusters * 2 * math.pi + math.pi / 2
@@ -133,13 +133,13 @@ def read_image_from_tfrecords(
     _, serialized_example = reader.read(filename_queue)
 
     features = {
-        'height': tf.FixedLenFeature([], tf.int64),
-        'width': tf.FixedLenFeature([], tf.int64),
-        'channel': tf.FixedLenFeature([], tf.int64),
+        'height': tf.FixedLenFeature([], tf.int32),
+        'width': tf.FixedLenFeature([], tf.int32),
+        'channel': tf.FixedLenFeature([], tf.int32),
         'image_raw': tf.FixedLenFeature([], tf.string),
     }
     if with_labels:
-        features['label'] = tf.FixedLenFeature([], tf.int64)
+        features['label'] = tf.FixedLenFeature([], tf.int32)
 
     example = tf.parse_single_example(serialized_example, features=features)
 
@@ -161,7 +161,7 @@ def read_image_from_tfrecords(
         image = tf.image.resize_images(image, (target_height, target_width))
 
     if with_labels:
-        label = tf.cast(example['label'], tf.int64)
+        label = tf.cast(example['label'], tf.int32)
         return image, label
     else:
         return image

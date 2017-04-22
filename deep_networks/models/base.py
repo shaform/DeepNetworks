@@ -68,3 +68,21 @@ class Model(object):
         """Initialize saver object"""
         if self.saver is None or saver is not None:
             self.saver = saver or tf.train.Saver()
+
+
+class GANModel(Model):
+    """GANModel"""
+
+    def __init__(self, sess, name, num_examples, output_shape, reg_const,
+                 batch_size, image_summary):
+        super().__init__(sess=sess, name=name)
+
+        self.output_shape = output_shape
+        self.batch_size = batch_size
+        self.num_examples = num_examples
+
+        self.image_summary = image_summary
+
+        self.is_training = tf.placeholder_with_default(
+            True, [], name='is_training')
+        self.regularizer = tf.contrib.layers.l2_regularizer(scale=reg_const)
