@@ -2,8 +2,8 @@
 Improved Wasserstein Generative Adversarial Networks
 """
 
+import datetime
 import os
-import time
 
 import numpy as np
 import tensorflow as tf
@@ -14,6 +14,8 @@ from ..train import IncrementalAverage
 
 
 class WGAN(GANModel):
+    """WGAN"""
+
     def __init__(self,
                  sess,
                  X_real,
@@ -174,7 +176,8 @@ class WGAN(GANModel):
             self.d_reg_loss = tf.contrib.layers.apply_regularization(
                 self.regularizer, d_reg_ops) if d_reg_ops else 0.0
 
-            self.d_total_loss = self.d_loss + self.d_grad_loss + self.d_reg_loss
+            self.d_total_loss = (
+                self.d_loss + self.d_grad_loss + self.d_reg_loss)
 
     def _build_summary(self):
         with tf.variable_scope('summary') as scope:
@@ -245,7 +248,8 @@ class WGAN(GANModel):
             if log_dir is not None:
                 log_dir = os.path.join(log_dir, self.name)
                 os.makedirs(log_dir, exist_ok=True)
-                run_name = '{}_{}'.format(self.name, time.time())
+                run_name = '{}_{}'.format(self.name,
+                                          datetime.datetime.now().isoformat())
                 log_path = os.path.join(log_dir, run_name)
                 self.writer = tf.summary.FileWriter(log_path, self.sess.graph)
             else:
@@ -284,11 +288,11 @@ class WGAN(GANModel):
 
                 def train_D_G():
                     # Update generator
-                    _, _, d_total_loss, g_total_loss, summary_str = self.sess.run(
-                        [
-                            self.d_optim, self.g_optim, self.d_total_loss,
-                            self.g_total_loss, self.summary
-                        ])
+                    (_, _, d_total_loss, g_total_loss,
+                     summary_str) = self.sess.run([
+                         self.d_optim, self.g_optim, self.d_total_loss,
+                         self.g_total_loss, self.summary
+                     ])
                     epoch_d_total_loss.add(d_total_loss)
                     epoch_g_total_loss.add(g_total_loss)
                     return summary_str

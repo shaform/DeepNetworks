@@ -1,8 +1,8 @@
+import datetime
 import functools
 import math
 import operator
 import os
-import time
 
 import tensorflow as tf
 
@@ -408,7 +408,8 @@ class DiscoGAN(GANModel):
             if log_dir is not None:
                 log_dir = os.path.join(log_dir, self.name)
                 os.makedirs(log_dir, exist_ok=True)
-                run_name = '{}_{}'.format(self.name, time.time())
+                run_name = '{}_{}'.format(self.name,
+                                          datetime.datetime.now().isoformat())
                 log_path = os.path.join(log_dir, run_name)
                 self.writer = tf.summary.FileWriter(log_path, self.sess.graph)
             else:
