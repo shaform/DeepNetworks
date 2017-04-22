@@ -133,13 +133,13 @@ def read_image_from_tfrecords(
     _, serialized_example = reader.read(filename_queue)
 
     features = {
-        'height': tf.FixedLenFeature([], tf.int32),
-        'width': tf.FixedLenFeature([], tf.int32),
-        'channel': tf.FixedLenFeature([], tf.int32),
+        'height': tf.FixedLenFeature([], tf.int64),
+        'width': tf.FixedLenFeature([], tf.int64),
+        'channel': tf.FixedLenFeature([], tf.int64),
         'image_raw': tf.FixedLenFeature([], tf.string),
     }
     if with_labels:
-        features['label'] = tf.FixedLenFeature([], tf.int32)
+        features['label'] = tf.FixedLenFeature([], tf.int64)
 
     example = tf.parse_single_example(serialized_example, features=features)
 
