@@ -92,18 +92,23 @@ class BasicDiscriminator(object):
                  num_layers=3,
                  use_fused_batch_norm=True,
                  skip_last_biases=False,
+                 use_layer_norm=False,
                  activation_fn=tf.nn.sigmoid,
                  class_activation_fn=tf.nn.softmax):
         assert num_layers > 0
         self.input_shape = input_shape
         self.input_size = functools.reduce(operator.mul, input_shape)
-        normalizer_fn = tf.contrib.layers.batch_norm
-        normalizer_params = {
-            'is_training': is_training,
-            'updates_collections': updates_collections
-        }
-        if use_fused_batch_norm:
-            normalizer_params['fused'] = True
+        if use_layer_norm:
+            normalizer_fn = tf.contrib.layers.layer_norm
+            normalizer_params = {'scale': False}
+        else:
+            normalizer_fn = tf.contrib.layers.batch_norm
+            normalizer_params = {
+                'is_training': is_training,
+                'updates_collections': updates_collections
+            }
+            if use_fused_batch_norm:
+                normalizer_params['fused'] = True
 
         with tf.variable_scope(name, reuse=reuse):
             outputs = X
@@ -347,18 +352,23 @@ class ConvDiscriminator(object):
                  num_layers=3,
                  use_fused_batch_norm=True,
                  skip_last_biases=False,
+                 use_layer_norm=False,
                  activation_fn=tf.nn.sigmoid,
                  class_activation_fn=tf.nn.softmax):
         assert num_layers > 0
         self.input_shape = input_shape
         self.input_size = functools.reduce(operator.mul, input_shape)
-        normalizer_fn = tf.contrib.layers.batch_norm
-        normalizer_params = {
-            'is_training': is_training,
-            'updates_collections': updates_collections
-        }
-        if use_fused_batch_norm:
-            normalizer_params['fused'] = True
+        if use_layer_norm:
+            normalizer_fn = tf.contrib.layers.layer_norm
+            normalizer_params = {'scale': False}
+        else:
+            normalizer_fn = tf.contrib.layers.batch_norm
+            normalizer_params = {
+                'is_training': is_training,
+                'updates_collections': updates_collections
+            }
+            if use_fused_batch_norm:
+                normalizer_params['fused'] = True
 
         with tf.variable_scope(name, reuse=reuse):
             outputs = tf.reshape(X, (-1, ) + input_shape)

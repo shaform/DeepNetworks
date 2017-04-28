@@ -105,7 +105,6 @@ class WGAN(GANModel):
             regularizer=self.regularizer,
             initializer=self.initializer,
             dim=self.g_dim,
-            use_fused_batch_norm=False,
             name='generator')
 
         self.d_real = discriminator_cls(
@@ -117,7 +116,7 @@ class WGAN(GANModel):
             dim=self.d_dim,
             activation_fn=None,
             skip_last_biases=True,
-            use_fused_batch_norm=False,
+            use_layer_norm=True,
             name='discriminator')
         self.d_fake = discriminator_cls(
             X=self.g.outputs,
@@ -128,7 +127,7 @@ class WGAN(GANModel):
             dim=self.d_dim,
             activation_fn=None,
             skip_last_biases=True,
-            use_fused_batch_norm=False,
+            use_layer_norm=True,
             reuse=True,
             name='discriminator')
 
@@ -142,14 +141,14 @@ class WGAN(GANModel):
             1. - self.epsilon)
         self.d_hat = discriminator_cls(
             X=self.X_hat,
-            is_training=self.is_training,
+            is_training=True,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
             dim=self.d_dim,
             activation_fn=None,
             skip_last_biases=True,
-            use_fused_batch_norm=False,
+            use_layer_norm=True,
             reuse=True,
             name='discriminator')
 
