@@ -350,11 +350,13 @@ class DiscoGAN(GANModel):
     def _build_losses(self):
         with tf.variable_scope('x_generator') as scope:
             self.x_recon_loss = tf.reduce_sum(
-                tf.losses.mean_squared_error(
-                    self.X, self.x_g_recon.outputs)) + self.feats_loss(
-                        self.x_d_real.features, self.x_d_recon.features)
+                tf.losses.mean_squared_error(self.X, self.x_g_recon.outputs)
+            ) + self.feats_loss(self.x_d_real.features[1:],
+                                self.x_d_recon.features[1:])
 
-            self.x_g_loss = -tf.reduce_mean(self.x_d_fake.outputs_d)
+            self.x_g_loss = -tf.reduce_mean(
+                self.x_d_fake.outputs_d) + self.feats_loss(
+                    self.x_d_real.features[1:], self.x_d_fake.features[1:])
 
             x_g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
@@ -362,11 +364,13 @@ class DiscoGAN(GANModel):
 
         with tf.variable_scope('y_generator') as scope:
             self.y_recon_loss = tf.reduce_sum(
-                tf.losses.mean_squared_error(
-                    self.Y, self.y_g_recon.outputs)) + self.feats_loss(
-                        self.y_d_real.features, self.y_d_recon.features)
+                tf.losses.mean_squared_error(self.Y, self.y_g_recon.outputs)
+            ) + self.feats_loss(self.y_d_real.features[1:],
+                                self.y_d_recon.features[1:])
 
-            self.y_g_loss = -tf.reduce_mean(self.y_d_fake.outputs_d)
+            self.y_g_loss = -tf.reduce_mean(
+                self.y_d_fake.outputs_d) + self.feats_loss(
+                    self.y_d_real.features[1:], self.y_d_fake.features[1:])
 
             y_g_reg_ops = tf.get_collection(
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
