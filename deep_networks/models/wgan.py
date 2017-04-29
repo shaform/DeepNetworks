@@ -59,7 +59,7 @@ class WGAN(GANModel):
             self.d_learning_rate = d_learning_rate
             self.d_clamp_lower = d_clamp_lower
             self.d_clamp_upper = d_clamp_upper
-            self.d_iters = 5
+            self.d_iters = d_iters
             self.d_high_iters = d_high_iters
             self.d_intial_high_rounds = d_intial_high_rounds
             self.d_step_high_rounds = d_step_high_rounds
