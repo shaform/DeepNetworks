@@ -67,7 +67,7 @@ class WGAN(GANModel):
             self.d_beta1 = d_beta1
             self.d_beta2 = d_beta2
             self.d_lambda = d_lambda
-            self.d_iters = 5
+            self.d_iters = d_iters
             self.d_high_iters = d_high_iters
             self.d_intial_high_rounds = d_intial_high_rounds
             self.d_step_high_rounds = d_step_high_rounds
