@@ -541,7 +541,7 @@ class DiscoGAN(GANModel):
                     return summary_str
 
                 # the complicated loop is to achieve the following
-                # with restore cabability
+                # with restore capability
                 #
                 # gen_iterations = 0
                 # while True:
