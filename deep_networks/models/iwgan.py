@@ -72,8 +72,6 @@ class WGAN(GANModel):
             self.d_intial_high_rounds = d_intial_high_rounds
             self.d_step_high_rounds = d_step_high_rounds
 
-            self.image_summary = image_summary
-
             self.X = X_real
             self.z = tf.random_normal(
                 (batch_size, z_dim),
