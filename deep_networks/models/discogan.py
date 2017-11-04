@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from .base import GANModel
 from .gan import BasicGenerator, BasicDiscriminator
-from ..ops import lrelu
+from ..ops import leaky_relu
 from ..train import IncrementalAverage
 
 
@@ -64,7 +64,7 @@ class ConvResizeConvGenerator(object):
                         kernel_size=(4, 4),
                         stride=stride,
                         padding='SAME',
-                        activation_fn=lrelu,
+                        activation_fn=leaky_relu,
                         normalizer_fn=layer_normalizer_fn,
                         normalizer_params=layer_normalizer_params,
                         weights_initializer=initializer,

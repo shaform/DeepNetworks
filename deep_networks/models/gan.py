@@ -11,7 +11,7 @@ import numpy as np
 import tensorflow as tf
 
 from .base import GANModel
-from ..ops import lrelu
+from ..ops import leaky_relu
 from ..train import IncrementalAverage
 
 
@@ -123,7 +123,7 @@ class BasicDiscriminator(object):
                     outputs = tf.contrib.layers.fully_connected(
                         inputs=outputs,
                         num_outputs=dim,
-                        activation_fn=lrelu,
+                        activation_fn=leaky_relu,
                         normalizer_fn=layer_normalizer_fn,
                         normalizer_params=layer_normalizer_params,
                         weights_initializer=initializer,
@@ -386,7 +386,7 @@ class ConvDiscriminator(object):
                         kernel_size=(4, 4),
                         stride=(2, 2),
                         padding='SAME',
-                        activation_fn=lrelu,
+                        activation_fn=leaky_relleaky_relu,
                         normalizer_fn=layer_normalizer_fn,
                         normalizer_params=layer_normalizer_params,
                         weights_initializer=initializer,
