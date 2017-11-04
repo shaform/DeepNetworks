@@ -369,7 +369,7 @@ class ConvDiscriminator(BaseImageDiscriminator):
             if self.num_classes:
                 with tf.variable_scope('cls_outputs'):
                     self.cls_outputs = self.build_cls_outputs(
-                        outputs, initializer, regularizer)
+                        outputs, self.num_classes, initializer, regularizer)
                     self.cls_activations = opt_activation(
                         self.cls_outputs, cls_activation_fn)
                     self.log_msg('WN-FC %d-LRelu (cls_outputs)', num_classes)
