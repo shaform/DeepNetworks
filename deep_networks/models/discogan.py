@@ -5,104 +5,9 @@ import os
 
 import tensorflow as tf
 
-from tf.nn.ops import leaky_relu
-
 from .base import GANModel
-from .gan import BasicGenerator, BasicDiscriminator
+from .blocks import BasicGenerator, BasicDiscriminator
 from ..train import IncrementalAverage
-
-
-class ConvResizeConvGenerator(object):
-    def __init__(self,
-                 z,
-                 is_training,
-                 output_shape,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 min_size=4,
-                 dim=32,
-                 max_dim=64,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=tf.nn.tanh):
-        assert num_layers > 0
-        self.output_shape = output_shape
-        self.output_size = functools.reduce(operator.mul, output_shape)
-        target_h, target_w, target_c = output_shape
-        normalizer_fn = tf.contrib.layers.batch_norm
-        normalizer_params = {
-            'is_training': is_training,
-            'updates_collections': updates_collections
-        }
-        min_h, min_w, min_dim = target_h, target_w, dim
-
-        with tf.variable_scope(name, reuse=reuse):
-            outputs = tf.reshape(z, (-1, ) + output_shape)
-            for i in range(num_layers):
-                with tf.variable_scope('conv{}'.format(i + 1)):
-                    stride = [1, 1]
-                    if min_h % 2 == 0 and min_h / 2 >= min_size:
-                        min_h //= 2
-                        stride[0] = 2
-                    if min_w % 2 == 0 and min_w / 2 >= min_size:
-                        min_w //= 2
-                        stride[1] = 2
-
-                    if skip_first_batch:
-                        layer_normalizer_fn = layer_normalizer_params = None
-                    else:
-                        layer_normalizer_fn = normalizer_fn
-                        layer_normalizer_params = normalizer_params
-
-                    outputs = tf.contrib.layers.conv2d(
-                        inputs=outputs,
-                        num_outputs=min_dim,
-                        kernel_size=(4, 4),
-                        stride=stride,
-                        padding='SAME',
-                        activation_fn=leaky_relu,
-                        normalizer_fn=layer_normalizer_fn,
-                        normalizer_params=layer_normalizer_params,
-                        weights_initializer=initializer,
-                        weights_regularizer=regularizer)
-                    min_dim = min(2 * min_dim, max_dim)
-
-            min_dim = dim
-            for i in range(num_layers):
-                with tf.variable_scope('rs_conv{}'.format(i + 1)):
-                    min_h = min(target_h, min_h * 2)
-                    min_w = min(target_w, min_w * 2)
-
-                    if i == num_layers - 1:
-                        layer_normalizer_fn = layer_normalizer_params = None
-                        min_dim = target_c
-                        layer_activation_fn = activation_fn
-                    else:
-                        layer_normalizer_fn = normalizer_fn
-                        layer_normalizer_params = normalizer_params
-                        layer_activation_fn = tf.nn.relu
-
-                    outputs = tf.image.resize_nearest_neighbor(
-                        outputs, (min_h, min_w), name='resize')
-                    outputs = tf.contrib.layers.conv2d(
-                        inputs=outputs,
-                        num_outputs=min_dim,
-                        kernel_size=(3, 3),
-                        stride=(1, 1),
-                        padding='SAME',
-                        activation_fn=layer_activation_fn,
-                        normalizer_fn=layer_normalizer_fn,
-                        normalizer_params=layer_normalizer_params,
-                        weights_initializer=initializer,
-                        weights_regularizer=regularizer)
-                    min_dim = min(2 * min_dim, max_dim)
-
-            self.outputs = tf.contrib.layers.flatten(outputs)
 
 
 class DiscoGAN(GANModel):
@@ -115,8 +20,6 @@ class DiscoGAN(GANModel):
                  y_output_shape,
                  reg_const=5e-5,
                  stddev=None,
-                 g_dim=32,
-                 d_dim=32,
                  batch_size=128,
                  g_learning_rate=0.0001,
                  g_beta1=0.5,
@@ -149,12 +52,10 @@ class DiscoGAN(GANModel):
             x_output_size = functools.reduce(operator.mul, x_output_shape)
             y_output_size = functools.reduce(operator.mul, y_output_shape)
 
-            self.g_dim = g_dim
             self.g_learning_rate = g_learning_rate
             self.g_beta1 = g_beta1
             self.g_beta2 = g_beta2
 
-            self.d_dim = d_dim
             self.d_learning_rate = d_learning_rate
             self.d_beta1 = d_beta1
             self.d_beta2 = d_beta2
@@ -186,202 +87,138 @@ class DiscoGAN(GANModel):
 
     def _build_GAN(self, generator_cls, discriminator_cls):
         self.x_g = generator_cls(
-            z=self.Y,
-            is_training=self.is_training,
+            inputs=self.Y,
             output_shape=self.x_output_shape,
-            regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.g_dim,
-            skip_first_batch=True,
             name='x_generator')
         self.y_g = generator_cls(
-            z=self.X,
-            is_training=self.is_training,
+            inputs=self.X,
             output_shape=self.y_output_shape,
-            regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.g_dim,
-            skip_first_batch=True,
             name='y_generator')
 
         self.x_g_recon = generator_cls(
-            z=self.y_g.outputs,
-            is_training=self.is_training,
+            inputs=self.y_g.activations,
             output_shape=self.x_output_shape,
-            updates_collections=self.updates_collections_noop,
-            regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.g_dim,
             reuse=True,
-            skip_first_batch=True,
             name='x_generator')
         self.y_g_recon = generator_cls(
-            z=self.x_g.outputs,
-            is_training=self.is_training,
+            inputs=self.x_g.activations,
             output_shape=self.y_output_shape,
-            updates_collections=self.updates_collections_noop,
-            regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.g_dim,
             reuse=True,
-            skip_first_batch=True,
             name='y_generator')
 
         self.x_d_real = discriminator_cls(
-            X=self.X,
-            is_training=self.is_training,
+            inputs=self.X,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             name='x_discriminator')
 
         self.y_d_real = discriminator_cls(
-            X=self.Y,
-            is_training=self.is_training,
+            inputs=self.Y,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             name='y_discriminator')
 
         self.x_d_fake = discriminator_cls(
-            X=self.x_g.outputs,
-            is_training=self.is_training,
+            inputs=self.x_g.activations,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='x_discriminator')
 
         self.y_d_fake = discriminator_cls(
-            X=self.y_g.outputs,
-            is_training=self.is_training,
+            inputs=self.y_g.activations,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='y_discriminator')
 
         self.x_d_recon = discriminator_cls(
-            X=self.x_g_recon.outputs,
-            is_training=self.is_training,
+            inputs=self.x_g_recon.activations,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='x_discriminator')
 
         self.y_d_recon = discriminator_cls(
-            X=self.y_g_recon.outputs,
-            is_training=self.is_training,
+            inputs=self.y_g_recon.activations,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='y_discriminator')
 
-        self.X_hat = self.X * self.epsilon + self.x_g.outputs * (
+        self.X_hat = self.X * self.epsilon + self.x_g.activations * (
             1. - self.epsilon)
 
-        self.Y_hat = self.Y * self.epsilon + self.y_g.outputs * (
+        self.Y_hat = self.Y * self.epsilon + self.y_g.activations * (
             1. - self.epsilon)
 
         self.x_d_hat = discriminator_cls(
-            X=self.X_hat,
-            is_training=True,
+            inputs=self.X_hat,
             input_shape=self.x_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='x_discriminator')
 
         self.y_d_hat = discriminator_cls(
-            X=self.Y_hat,
-            is_training=True,
+            inputs=self.Y_hat,
             input_shape=self.y_output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
-            activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
+            disc_activation_fn=None,
             reuse=True,
             name='y_discriminator')
 
-        with tf.variable_scope('x_generator') as scope:
-            self.x_g_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
-        with tf.variable_scope('y_generator') as scope:
-            self.y_g_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
-        with tf.variable_scope('x_discriminator') as scope:
-            self.x_d_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
-        with tf.variable_scope('y_discriminator') as scope:
-            self.y_d_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
+        self.x_g_vars = self.x_g.get_vars()
+        self.y_g_vars = self.y_g.get_vars()
+        self.x_d_vars = self.x_d_real.get_vars()
+        self.y_d_vars = self.y_d_real.get_vars()
 
     def _build_losses(self):
         with tf.variable_scope('x_generator') as scope:
             self.x_recon_loss = tf.reduce_sum(
-                tf.losses.mean_squared_error(self.X, self.x_g_recon.outputs)
-            ) + self.feats_loss(self.x_d_real.features[1:],
-                                self.x_d_recon.features[1:])
+                tf.losses.mean_squared_error(
+                    self.X, self.x_g_recon.activations)) + self.feats_loss(
+                        self.x_d_real.features[1:],
+                        self.x_d_recon.features[1:])
 
             self.x_g_loss = -tf.reduce_mean(
-                self.x_d_fake.outputs_d) + self.feats_loss(
+                self.x_d_fake.disc_outputs) + self.feats_loss(
                     self.x_d_real.features[1:], self.x_d_fake.features[1:])
-
-            x_g_reg_ops = tf.get_collection(
-                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.x_g_reg_loss = tf.add_n(x_g_reg_ops) if x_g_reg_ops else 0.0
 
         with tf.variable_scope('y_generator') as scope:
             self.y_recon_loss = tf.reduce_sum(
-                tf.losses.mean_squared_error(self.Y, self.y_g_recon.outputs)
-            ) + self.feats_loss(self.y_d_real.features[1:],
-                                self.y_d_recon.features[1:])
+                tf.losses.mean_squared_error(
+                    self.Y, self.y_g_recon.activations)) + self.feats_loss(
+                        self.y_d_real.features[1:],
+                        self.y_d_recon.features[1:])
 
             self.y_g_loss = -tf.reduce_mean(
-                self.y_d_fake.outputs_d) + self.feats_loss(
+                self.y_d_fake.disc_outputs) + self.feats_loss(
                     self.y_d_real.features[1:], self.y_d_fake.features[1:])
 
-            y_g_reg_ops = tf.get_collection(
-                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.y_g_reg_loss = tf.add_n(y_g_reg_ops) if y_g_reg_ops else 0.0
-
         with tf.variable_scope('x_discriminator') as scope:
-            self.x_d_loss_real = tf.reduce_mean(self.x_d_real.outputs_d)
-            self.x_d_loss_fake = tf.reduce_mean(self.x_d_fake.outputs_d)
+            self.x_d_loss_real = tf.reduce_mean(self.x_d_real.disc_outputs)
+            self.x_d_loss_fake = tf.reduce_mean(self.x_d_fake.disc_outputs)
             self.x_d_loss = self.x_d_loss_fake - self.x_d_loss_real
-            self.x_d_grad = tf.gradients(self.x_d_hat.outputs_d, [
+            self.x_d_grad = tf.gradients(self.x_d_hat.disc_outputs, [
                 self.X_hat,
             ])[0]
             self.x_d_grad_loss = self.d_lambda * tf.reduce_mean(
@@ -392,10 +229,10 @@ class DiscoGAN(GANModel):
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
             self.x_d_reg_loss = tf.add_n(x_d_reg_ops) if x_d_reg_ops else 0.0
         with tf.variable_scope('y_discriminator') as scope:
-            self.y_d_loss_real = tf.reduce_mean(self.y_d_real.outputs_d)
-            self.y_d_loss_fake = tf.reduce_mean(self.y_d_fake.outputs_d)
+            self.y_d_loss_real = tf.reduce_mean(self.y_d_real.disc_outputs)
+            self.y_d_loss_fake = tf.reduce_mean(self.y_d_fake.disc_outputs)
             self.y_d_loss = self.y_d_loss_fake - self.y_d_loss_real
-            self.y_d_grad = tf.gradients(self.y_d_hat.outputs_d, [
+            self.y_d_grad = tf.gradients(self.y_d_hat.disc_outputs, [
                 self.Y_hat,
             ])[0]
             self.y_d_grad_loss = self.d_lambda * tf.reduce_mean(
@@ -406,9 +243,8 @@ class DiscoGAN(GANModel):
                 tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
             self.y_d_reg_loss = tf.add_n(y_d_reg_ops) if y_d_reg_ops else 0.0
 
-        self.g_total_loss = (
-            self.x_g_loss + self.y_g_loss + self.x_recon_loss +
-            self.y_recon_loss + self.x_g_reg_loss + self.y_g_reg_loss)
+        self.g_total_loss = (self.x_g_loss + self.y_g_loss + self.x_recon_loss
+                             + self.y_recon_loss)
         self.d_total_loss = (
             self.x_d_loss + self.y_d_loss + self.x_d_grad_loss +
             self.y_d_grad_loss + self.x_d_reg_loss + self.y_d_reg_loss)
@@ -422,27 +258,31 @@ class DiscoGAN(GANModel):
                     'y', tf.reshape(self.Y, (-1, ) + self.y_output_shape))
                 self.x_g_sum = tf.summary.image(
                     'x_g',
-                    tf.reshape(self.x_g.outputs, (-1, ) + self.x_output_shape))
+                    tf.reshape(self.x_g.activations,
+                               (-1, ) + self.x_output_shape))
                 self.y_g_sum = tf.summary.image(
                     'y_g',
-                    tf.reshape(self.y_g.outputs, (-1, ) + self.y_output_shape))
+                    tf.reshape(self.y_g.activations,
+                               (-1, ) + self.y_output_shape))
                 self.x_g_recon_sum = tf.summary.image(
                     'x_g_recon',
-                    tf.reshape(self.x_g_recon.outputs,
+                    tf.reshape(self.x_g_recon.activations,
                                (-1, ) + self.x_output_shape))
                 self.y_g_recon_sum = tf.summary.image(
                     'y_g_recon',
-                    tf.reshape(self.y_g_recon.outputs,
+                    tf.reshape(self.y_g_recon.activations,
                                (-1, ) + self.y_output_shape))
             else:
                 self.x_sum = tf.summary.histogram('x', self.X)
                 self.y_sum = tf.summary.histogram('y', self.Y)
-                self.x_g_sum = tf.summary.histogram('x_g', self.x_g.outputs)
-                self.y_g_sum = tf.summary.histogram('y_g', self.y_g.outputs)
+                self.x_g_sum = tf.summary.histogram('x_g',
+                                                    self.x_g.activations)
+                self.y_g_sum = tf.summary.histogram('y_g',
+                                                    self.y_g.activations)
                 self.x_g_recon_sum = tf.summary.histogram(
-                    'x_g_recon', self.x_g_recon.outputs)
+                    'x_g_recon', self.x_g_recon.activations)
                 self.y_g_recon_sum = tf.summary.histogram(
-                    'y_g_recon', self.y_g_recon.outputs)
+                    'y_g_recon', self.y_g_recon.activations)
             self.x_d_loss_sum = tf.summary.histogram('x_d_loss', self.x_d_loss)
             self.y_d_loss_sum = tf.summary.histogram('y_d_loss', self.y_d_loss)
 
@@ -455,29 +295,13 @@ class DiscoGAN(GANModel):
                 tf.get_collection(tf.GraphKeys.SUMMARIES, scope=scope.name))
 
     def _build_optimizer(self):
-        with tf.variable_scope('x_generator') as scope:
-            update_ops_x_g = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-        with tf.variable_scope('y_generator') as scope:
-            update_ops_y_g = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-        update_ops_g = update_ops_x_g + update_ops_y_g
-        with tf.control_dependencies(update_ops_g):
-            self.g_optim = tf.train.AdamOptimizer(
-                self.g_learning_rate, beta1=self.g_beta1).minimize(
-                    self.g_total_loss, var_list=self.x_g_vars + self.y_g_vars)
+        self.g_optim = tf.train.AdamOptimizer(
+            self.g_learning_rate, beta1=self.g_beta1).minimize(
+                self.g_total_loss, var_list=self.x_g_vars + self.y_g_vars)
 
-        with tf.variable_scope('x_discriminator') as d_scope:
-            update_ops_x_d = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
-        with tf.variable_scope('y_discriminator') as d_scope:
-            update_ops_y_d = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=d_scope.name)
-        update_ops_d = update_ops_x_d + update_ops_y_d
-        with tf.control_dependencies(update_ops_d):
-            self.d_optim = tf.train.AdamOptimizer(
-                self.d_learning_rate, beta1=self.d_beta1).minimize(
-                    self.d_total_loss, var_list=self.x_d_vars + self.y_d_vars)
+        self.d_optim = tf.train.AdamOptimizer(
+            self.d_learning_rate, beta1=self.d_beta1).minimize(
+                self.d_total_loss, var_list=self.x_d_vars + self.y_d_vars)
 
     def train(self,
               num_epochs,
@@ -600,26 +424,30 @@ class DiscoGAN(GANModel):
                         g_loss=epoch_g_total_loss.average,
                         d_loss=epoch_d_total_loss.average)
 
+            # Save final checkpoint
+            if checkpoint_dir:
+                self.save(checkpoint_dir, step)
+
     def sample_x(self, y=None):
         if y is not None:
             return [y] + self.sess.run(
-                [self.x_g.outputs, self.y_g_recon.outputs],
+                [self.x_g.activations, self.y_g_recon.activations],
                 feed_dict={self.is_training: False,
                            self.Y: y})
         else:
             return self.sess.run(
-                [self.Y, self.x_g.outputs, self.y_g_recon.outputs],
+                [self.Y, self.x_g.activations, self.y_g_recon.activations],
                 feed_dict={self.is_training: False})
 
     def sample_y(self, x=None):
         if x is not None:
             return [x] + self.sess.run(
-                [self.y_g.outputs, self.x_g_recon.outputs],
+                [self.y_g.activations, self.x_g_recon.activations],
                 feed_dict={self.is_training: False,
                            self.X: x})
         else:
             return self.sess.run(
-                [self.X, self.y_g.outputs, self.x_g_recon.outputs],
+                [self.X, self.y_g.activations, self.x_g_recon.activations],
                 feed_dict={self.is_training: False})
 
     def feats_loss(self, real_feats, fake_feats):

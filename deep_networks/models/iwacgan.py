@@ -8,117 +8,8 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from . import gan
 from .base import GANModel
 from ..train import IncrementalAverage
-
-
-class BasicGenerator(gan.BasicGenerator):
-    """BasicGenerator"""
-
-    def __init__(self,
-                 z,
-                 c,
-                 is_training,
-                 output_shape,
-                 num_classes,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 code_regularizer=None,
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 dim=128,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=None):
-        assert num_layers > 0
-
-        with tf.variable_scope(name, reuse=reuse):
-            with tf.variable_scope('codes'):
-                self.codes = tf.get_variable(
-                    'codes', [num_classes, z.get_shape()[1]],
-                    initializer=initializer,
-                    regularizer=code_regularizer)
-                z_c = tf.nn.embedding_lookup(self.codes, c)
-                outputs = tf.multiply(z, z_c)
-
-        super().__init__(
-            z=outputs,
-            is_training=is_training,
-            output_shape=output_shape,
-            updates_collections=updates_collections,
-            initializer=initializer,
-            regularizer=regularizer,
-            name=name,
-            reuse=reuse,
-            dim=dim,
-            num_layers=num_layers,
-            skip_first_batch=skip_first_batch,
-            use_fused_batch_norm=use_fused_batch_norm,
-            activation_fn=activation_fn)
-
-
-class BasicDiscriminator(gan.BasicDiscriminator):
-    pass
-
-
-class ConvTransposeGenerator(gan.ConvTransposeGenerator):
-    """ConvTransposeGenerator"""
-
-    def __init__(self,
-                 z,
-                 c,
-                 is_training,
-                 output_shape,
-                 num_classes,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 code_regularizer=None,
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 min_size=4,
-                 dim=32,
-                 max_dim=64,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=tf.nn.tanh):
-        assert num_layers > 0
-
-        with tf.variable_scope(name, reuse=reuse):
-            with tf.variable_scope('codes'):
-                self.codes = tf.get_variable(
-                    'codes', [num_classes, z.get_shape()[1]],
-                    initializer=initializer,
-                    regularizer=code_regularizer)
-                z_c = tf.nn.embedding_lookup(self.codes, c)
-                outputs = tf.multiply(z, z_c)
-
-        super().__init__(
-            z=outputs,
-            is_training=is_training,
-            output_shape=output_shape,
-            updates_collections=updates_collections,
-            initializer=initializer,
-            regularizer=regularizer,
-            name=name,
-            reuse=reuse,
-            min_size=min_size,
-            dim=dim,
-            max_dim=max_dim,
-            num_layers=num_layers,
-            skip_first_batch=skip_first_batch,
-            use_fused_batch_norm=use_fused_batch_norm,
-            activation_fn=activation_fn)
-
-
-class ConvDiscriminator(gan.ConvDiscriminator):
-    pass
 
 
 class WACGAN(GANModel):
@@ -224,38 +115,26 @@ class WACGAN(GANModel):
         self.g = generator_cls(
             z=self.z,
             c=self.c,
-            is_training=self.is_training,
             output_shape=self.output_shape,
             num_classes=self.num_classes,
-            regularizer=self.regularizer,
             initializer=self.initializer,
-            code_regularizer=self.code_regularizer,
-            dim=self.g_dim,
             name='generator')
 
         self.d_real = discriminator_cls(
             X=self.X,
-            is_training=self.is_training,
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
             activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
             name='discriminator')
         self.d_fake = discriminator_cls(
-            X=self.g.outputs,
-            is_training=self.is_training,
+            X=self.g.activations,
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
             activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
             reuse=True,
             name='discriminator')
 
@@ -265,18 +144,15 @@ class WACGAN(GANModel):
         with tf.variable_scope('discriminator') as scope:
             self.d_vars = tf.get_collection(
                 tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
-        self.X_hat = self.X * self.epsilon + self.g.outputs * (
+        self.X_hat = self.X * self.epsilon + self.g.activations * (
             1. - self.epsilon)
         self.d_hat = discriminator_cls(
-            X=self.X_hat,
-            is_training=True,
+            inputs=self.X_hat,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
             dim=self.d_dim,
             activation_fn=None,
-            skip_last_biases=True,
-            use_layer_norm=True,
             reuse=True,
             name='discriminator')
 
@@ -343,10 +219,10 @@ class WACGAN(GANModel):
             if self.image_summary:
                 self.g_sum = tf.summary.image('g',
                                               tf.reshape(
-                                                  self.g.outputs,
+                                                  self.g.activations,
                                                   (-1, ) + self.output_shape))
             else:
-                self.g_sum = tf.summary.histogram('g', self.g.outputs)
+                self.g_sum = tf.summary.histogram('g', self.g.activations)
 
             self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
             self.g_c_loss_sum = tf.summary.scalar('g_c_loss', self.g_c_loss)
@@ -374,8 +250,9 @@ class WACGAN(GANModel):
                                                      self.d_grad_loss)
             self.d_c_loss_sum = tf.summary.scalar('d_c_loss', self.d_c_loss)
 
-            self.d_reg_loss_sum = tf.summary.scalar('d_reg_loss',
-                                                    self.d_reg_loss)
+            if self.regularizer is not None:
+                self.d_reg_loss_sum = tf.summary.scalar(
+                    'd_reg_loss', self.d_reg_loss)
             self.d_total_loss_sum = tf.summary.scalar('d_total_loss',
                                                       self.d_total_loss)
 
@@ -532,16 +409,20 @@ class WACGAN(GANModel):
                         g_loss=epoch_g_total_loss.average,
                         d_loss=epoch_d_total_loss.average)
 
+            # Save final checkpoint
+            if checkpoint_dir:
+                self.save(checkpoint_dir, step)
+
     def sample(self, num_samples=None, z=None, c=None):
         if z is not None and c is not None:
             return self.sess.run(
-                self.g.outputs,
+                self.g.activations,
                 feed_dict={self.is_training: False,
                            self.z: z,
                            self.c: c})
         elif num_samples is not None:
             return self.sess.run(
-                self.g.outputs,
+                self.g.activations,
                 feed_dict={
                     self.is_training: False,
                     self.z: self.sample_z(num_samples),
@@ -549,7 +430,7 @@ class WACGAN(GANModel):
                 })
         else:
             return self.sess.run(
-                self.g.outputs, feed_dict={self.is_training: False})
+                self.g.activations, feed_dict={self.is_training: False})
 
     def sample_z(self, num_samples):
         return np.random.normal(0.0, self.z_stddev, (num_samples, self.z_dim))

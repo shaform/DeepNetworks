@@ -107,7 +107,7 @@ class DenseWithWeightNorm(base.Layer):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(DenseWithWeightNorm, self).__init__(
+        super().__init__(
             trainable=trainable,
             name=name,
             activity_regularizer=activity_regularizer,
@@ -356,7 +356,7 @@ class _ConvWithWeightNorm(base.Layer):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(_ConvWithWeightNorm, self).__init__(
+        super().__init__(
             trainable=trainable,
             name=name,
             activity_regularizer=activity_regularizer,
@@ -396,7 +396,7 @@ class _ConvWithWeightNorm(base.Layer):
         if self.scale:
             self.g = self.add_variable(
                 'g',
-                shape=[1] * (len(self.kernel_size) + 1) + [self.units],
+                shape=[1] * (len(self.kernel_size) + 1) + [self.filters],
                 dtype=self.dtype,
                 initializer=init_ops.ones_initializer(),
                 trainable=True)
@@ -572,7 +572,7 @@ class Conv1DWithWeightNorm(_ConvWithWeightNorm):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(Conv1DWithWeightNorm, self).__init__(
+        super().__init__(
             rank=1,
             filters=filters,
             kernel_size=kernel_size,
@@ -595,26 +595,26 @@ class Conv1DWithWeightNorm(_ConvWithWeightNorm):
             **kwargs)
 
 
-def conv1d(inputs,
-           filters,
-           kernel_size,
-           strides=1,
-           padding='valid',
-           data_format='channels_last',
-           dilation_rate=1,
-           activation=None,
-           use_bias=True,
-           kernel_initializer=None,
-           bias_initializer=init_ops.zeros_initializer(),
-           kernel_regularizer=None,
-           bias_regularizer=None,
-           activity_regularizer=None,
-           kernel_constraint=None,
-           bias_constraint=None,
-           scale=True,
-           trainable=True,
-           name=None,
-           reuse=None):
+def conv1d_with_weight_norm(inputs,
+                            filters,
+                            kernel_size,
+                            strides=1,
+                            padding='valid',
+                            data_format='channels_last',
+                            dilation_rate=1,
+                            activation=None,
+                            use_bias=True,
+                            kernel_initializer=None,
+                            bias_initializer=init_ops.zeros_initializer(),
+                            kernel_regularizer=None,
+                            bias_regularizer=None,
+                            activity_regularizer=None,
+                            kernel_constraint=None,
+                            bias_constraint=None,
+                            scale=True,
+                            trainable=True,
+                            name=None,
+                            reuse=None):
     """Functional interface for 1D convolution layer (e.g. temporal convolution).
 
     This layer creates a convolution kernel that is convolved
@@ -782,7 +782,7 @@ class Conv2DWithWeightNorm(_ConvWithWeightNorm):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(Conv2DWithWeightNorm, self).__init__(
+        super().__init__(
             rank=2,
             filters=filters,
             kernel_size=kernel_size,
@@ -805,26 +805,26 @@ class Conv2DWithWeightNorm(_ConvWithWeightNorm):
             **kwargs)
 
 
-def conv2d(inputs,
-           filters,
-           kernel_size,
-           strides=(1, 1),
-           padding='valid',
-           data_format='channels_last',
-           dilation_rate=(1, 1),
-           activation=None,
-           use_bias=True,
-           kernel_initializer=None,
-           bias_initializer=init_ops.zeros_initializer(),
-           kernel_regularizer=None,
-           bias_regularizer=None,
-           activity_regularizer=None,
-           kernel_constraint=None,
-           bias_constraint=None,
-           scale=True,
-           trainable=True,
-           name=None,
-           reuse=None):
+def conv2d_with_weight_norm(inputs,
+                            filters,
+                            kernel_size,
+                            strides=(1, 1),
+                            padding='valid',
+                            data_format='channels_last',
+                            dilation_rate=(1, 1),
+                            activation=None,
+                            use_bias=True,
+                            kernel_initializer=None,
+                            bias_initializer=init_ops.zeros_initializer(),
+                            kernel_regularizer=None,
+                            bias_regularizer=None,
+                            activity_regularizer=None,
+                            kernel_constraint=None,
+                            bias_constraint=None,
+                            scale=True,
+                            trainable=True,
+                            name=None,
+                            reuse=None):
     """Functional interface for the 2D convolution layer.
 
     This layer creates a convolution kernel that is convolved
@@ -1000,7 +1000,7 @@ class Conv3DWithWeightNorm(_ConvWithWeightNorm):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(Conv3DWithWeightNorm, self).__init__(
+        super().__init__(
             rank=3,
             filters=filters,
             kernel_size=kernel_size,
@@ -1023,26 +1023,26 @@ class Conv3DWithWeightNorm(_ConvWithWeightNorm):
             **kwargs)
 
 
-def conv3d(inputs,
-           filters,
-           kernel_size,
-           strides=(1, 1, 1),
-           padding='valid',
-           data_format='channels_last',
-           dilation_rate=(1, 1, 1),
-           activation=None,
-           use_bias=True,
-           kernel_initializer=None,
-           bias_initializer=init_ops.zeros_initializer(),
-           kernel_regularizer=None,
-           bias_regularizer=None,
-           activity_regularizer=None,
-           kernel_constraint=None,
-           bias_constraint=None,
-           scale=True,
-           trainable=True,
-           name=None,
-           reuse=None):
+def conv3d_with_weight_norm(inputs,
+                            filters,
+                            kernel_size,
+                            strides=(1, 1, 1),
+                            padding='valid',
+                            data_format='channels_last',
+                            dilation_rate=(1, 1, 1),
+                            activation=None,
+                            use_bias=True,
+                            kernel_initializer=None,
+                            bias_initializer=init_ops.zeros_initializer(),
+                            kernel_regularizer=None,
+                            bias_regularizer=None,
+                            activity_regularizer=None,
+                            kernel_constraint=None,
+                            bias_constraint=None,
+                            scale=True,
+                            trainable=True,
+                            name=None,
+                            reuse=None):
     """Functional interface for the 3D convolution layer.
 
     This layer creates a convolution kernel that is convolved
@@ -1136,6 +1136,316 @@ def conv3d(inputs,
     return layer.apply(inputs)
 
 
+class Conv2DTransposeWithWeightNorm(Conv2DWithWeightNorm):
+    """Transposed 2D convolution layer (sometimes called 2D Deconvolution).
+
+    The need for transposed convolutions generally arises
+    from the desire to use a transformation going in the opposite direction
+    of a normal convolution, i.e., from something that has the shape of the
+    output of some convolution to something that has the shape of its input
+    while maintaining a connectivity pattern that is compatible with
+    said convolution.
+
+    Arguments:
+      filters: Integer, the dimensionality of the output space (i.e. the number
+        of filters in the convolution).
+      kernel_size: A tuple or list of 2 positive integers specifying the spatial
+        dimensions of the filters. Can be a single integer to specify the same
+        value for all spatial dimensions.
+      strides: A tuple or list of 2 positive integers specifying the strides
+        of the convolution. Can be a single integer to specify the same value for
+        all spatial dimensions.
+      padding: one of `"valid"` or `"same"` (case-insensitive).
+      data_format: A string, one of `channels_last` (default) or `channels_first`.
+        The ordering of the dimensions in the inputs.
+        `channels_last` corresponds to inputs with shape
+        `(batch, height, width, channels)` while `channels_first` corresponds to
+        inputs with shape `(batch, channels, height, width)`.
+      activation: Activation function. Set it to None to maintain a
+        linear activation.
+      use_bias: Boolean, whether the layer uses a bias.
+      kernel_initializer: An initializer for the convolution kernel.
+      bias_initializer: An initializer for the bias vector. If None, no bias will
+        be applied.
+      kernel_regularizer: Optional regularizer for the convolution kernel.
+      bias_regularizer: Optional regularizer for the bias vector.
+      activity_regularizer: Optional regularizer function for the output.
+      kernel_constraint: Optional projection function to be applied to the
+          kernel after being updated by an `Optimizer` (e.g. used to implement
+          norm constraints or value constraints for layer weights). The function
+          must take as input the unprojected variable and must return the
+          projected variable (which must have the same shape). Constraints are
+          not safe to use when doing asynchronous distributed training.
+      bias_constraint: Optional projection function to be applied to the
+          bias after being updated by an `Optimizer`.
+      trainable: Boolean, if `True` also add variables to the graph collection
+        `GraphKeys.TRAINABLE_VARIABLES` (see `tf.Variable`).
+      name: A string, the name of the layer.
+    """
+
+    def __init__(self,
+                 filters,
+                 kernel_size,
+                 strides=(1, 1),
+                 padding='valid',
+                 data_format='channels_last',
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer=None,
+                 bias_initializer=init_ops.zeros_initializer(),
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 trainable=True,
+                 scale=True,
+                 name=None,
+                 **kwargs):
+        super().__init__(
+            filters,
+            kernel_size,
+            strides=strides,
+            padding=padding,
+            data_format=data_format,
+            activation=activation,
+            use_bias=use_bias,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer,
+            activity_regularizer=activity_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint,
+            trainable=trainable,
+            scale=scale,
+            name=name,
+            **kwargs)
+        self.input_spec = base.InputSpec(ndim=4)
+
+    def build(self, input_shape):
+        if len(input_shape) != 4:
+            raise ValueError(
+                'Inputs should have rank ' + str(4) + 'Received input shape:',
+                str(input_shape))
+        if self.data_format == 'channels_first':
+            channel_axis = 1
+        else:
+            channel_axis = -1
+        if input_shape[channel_axis] is None:
+            raise ValueError('The channel dimension of the inputs '
+                             'should be defined. Found `None`.')
+        input_dim = input_shape[channel_axis]
+        self.input_spec = base.InputSpec(
+            ndim=4, axes={channel_axis: input_dim})
+        kernel_shape = self.kernel_size + (self.filters, input_dim)
+
+        if self.scale:
+            self.g = self.add_variable(
+                'g',
+                shape=[1] * len(self.kernel_size) + [self.filters, 1],
+                dtype=self.dtype,
+                initializer=init_ops.ones_initializer(),
+                trainable=True)
+        else:
+            self.g = 1.
+        self.kernel = self.add_variable(
+            name='kernel',
+            shape=kernel_shape,
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            trainable=True,
+            dtype=self.dtype)
+        if self.use_bias:
+            self.bias = self.add_variable(
+                name='bias',
+                shape=(self.filters, ),
+                initializer=self.bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                trainable=True,
+                dtype=self.dtype)
+        else:
+            self.bias = None
+        self.built = True
+
+    def call(self, inputs):
+        inputs_shape = array_ops.shape(inputs)
+        batch_size = inputs_shape[0]
+        if self.data_format == 'channels_first':
+            c_axis, h_axis, w_axis = 1, 2, 3
+        else:
+            c_axis, h_axis, w_axis = 3, 1, 2
+
+        height, width = inputs_shape[h_axis], inputs_shape[w_axis]
+        kernel_h, kernel_w = self.kernel_size
+        stride_h, stride_w = self.strides
+
+        # Infer the dynamic output shape:
+        out_height = utils.deconv_output_length(height, kernel_h, self.padding,
+                                                stride_h)
+        out_width = utils.deconv_output_length(width, kernel_w, self.padding,
+                                               stride_w)
+        if self.data_format == 'channels_first':
+            output_shape = (batch_size, self.filters, out_height, out_width)
+            strides = (1, 1, stride_h, stride_w)
+        else:
+            output_shape = (batch_size, out_height, out_width, self.filters)
+            strides = (1, stride_h, stride_w, 1)
+
+        kernel_len = len(self.kernel_size)
+        scaled_kernel = tf.nn.l2_normalize(
+            self.kernel, list(range(kernel_len)) + [1 + kernel_len])
+        if self.scale:
+            scaled_kernel = math_ops.multiply(self.g, scaled_kernel)
+        output_shape_tensor = array_ops.stack(output_shape)
+        outputs = nn.conv2d_transpose(
+            inputs,
+            scaled_kernel,
+            output_shape_tensor,
+            strides,
+            padding=self.padding.upper(),
+            data_format=utils.convert_data_format(self.data_format, ndim=4))
+
+        if context.in_graph_mode():
+            # Infer the static output shape:
+            out_shape = inputs.get_shape().as_list()
+            out_shape[c_axis] = self.filters
+            out_shape[h_axis] = utils.deconv_output_length(
+                out_shape[h_axis], kernel_h, self.padding, stride_h)
+            out_shape[w_axis] = utils.deconv_output_length(
+                out_shape[w_axis], kernel_w, self.padding, stride_w)
+            outputs.set_shape(out_shape)
+
+        if self.use_bias:
+            outputs = nn.bias_add(
+                outputs,
+                self.bias,
+                data_format=utils.convert_data_format(
+                    self.data_format, ndim=4))
+
+        if self.activation is not None:
+            return self.activation(outputs)
+        return outputs
+
+    def _compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        output_shape = list(input_shape)
+        if self.data_format == 'channels_first':
+            c_axis, h_axis, w_axis = 1, 2, 3
+        else:
+            c_axis, h_axis, w_axis = 3, 1, 2
+
+        kernel_h, kernel_w = self.kernel_size
+        stride_h, stride_w = self.strides
+
+        output_shape[c_axis] = self.filters
+        output_shape[h_axis] = utils.deconv_output_length(
+            output_shape[h_axis], kernel_h, self.padding, stride_h)
+        output_shape[w_axis] = utils.deconv_output_length(
+            output_shape[w_axis], kernel_w, self.padding, stride_w)
+        return tensor_shape.TensorShape(output_shape)
+
+
+def conv2d_transpose_with_weight_norm(
+        inputs,
+        filters,
+        kernel_size,
+        strides=(1, 1),
+        padding='valid',
+        data_format='channels_last',
+        activation=None,
+        use_bias=True,
+        kernel_initializer=None,
+        bias_initializer=init_ops.zeros_initializer(),
+        kernel_regularizer=None,
+        bias_regularizer=None,
+        activity_regularizer=None,
+        kernel_constraint=None,
+        bias_constraint=None,
+        trainable=True,
+        scale=True,
+        name=None,
+        reuse=None):
+    """Functional interface for transposed 2D convolution layer.
+
+  The need for transposed convolutions generally arises
+  from the desire to use a transformation going in the opposite direction
+  of a normal convolution, i.e., from something that has the shape of the
+  output of some convolution to something that has the shape of its input
+  while maintaining a connectivity pattern that is compatible with
+  said convolution.
+
+  Arguments:
+    inputs: Input tensor.
+    filters: Integer, the dimensionality of the output space (i.e. the number
+      of filters in the convolution).
+    kernel_size: A tuple or list of 2 positive integers specifying the spatial
+      dimensions of the filters. Can be a single integer to specify the same
+      value for all spatial dimensions.
+    strides: A tuple or list of 2 positive integers specifying the strides
+      of the convolution. Can be a single integer to specify the same value for
+      all spatial dimensions.
+    padding: one of `"valid"` or `"same"` (case-insensitive).
+    data_format: A string, one of `channels_last` (default) or `channels_first`.
+      The ordering of the dimensions in the inputs.
+      `channels_last` corresponds to inputs with shape
+      `(batch, height, width, channels)` while `channels_first` corresponds to
+      inputs with shape `(batch, channels, height, width)`.
+    activation: Activation function. Set it to `None` to maintain a
+      linear activation.
+    use_bias: Boolean, whether the layer uses a bias.
+    kernel_initializer: An initializer for the convolution kernel.
+    bias_initializer: An initializer for the bias vector. If `None`, then no
+      bias will be applied.
+    kernel_regularizer: Optional regularizer for the convolution kernel.
+    bias_regularizer: Optional regularizer for the bias vector.
+    activity_regularizer: Optional regularizer function for the output.
+    kernel_constraint: Optional projection function to be applied to the
+        kernel after being updated by an `Optimizer` (e.g. used to implement
+        norm constraints or value constraints for layer weights). The function
+        must take as input the unprojected variable and must return the
+        projected variable (which must have the same shape). Constraints are
+        not safe to use when doing asynchronous distributed training.
+    bias_constraint: Optional projection function to be applied to the
+        bias after being updated by an `Optimizer`.
+    trainable: Boolean, if `True` also add variables to the graph collection
+      `GraphKeys.TRAINABLE_VARIABLES` (see `tf.Variable`).
+    name: A string, the name of the layer.
+    reuse: Boolean, whether to reuse the weights of a previous layer
+      by the same name.
+
+  Returns:
+    Output tensor.
+
+  Raises:
+    ValueError: if eager execution is enabled.
+  """
+    layer = Conv2DTransposeWithWeightNorm(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        data_format=data_format,
+        activation=activation,
+        use_bias=use_bias,
+        kernel_initializer=kernel_initializer,
+        bias_initializer=bias_initializer,
+        kernel_regularizer=kernel_regularizer,
+        bias_regularizer=bias_regularizer,
+        activity_regularizer=activity_regularizer,
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        trainable=trainable,
+        scale=scale,
+        name=name,
+        dtype=inputs.dtype.base_dtype,
+        _reuse=reuse,
+        _scope=name)
+    return layer.apply(inputs)
+
+
 class PReLU(base.Layer):
     """Parametric Rectified Linear Unit.
 
@@ -1179,7 +1489,7 @@ class PReLU(base.Layer):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(PReLU, self).__init__(
+        super().__init__(
             trainable=trainable,
             name=name,
             activity_regularizer=activity_regularizer,
@@ -1335,7 +1645,7 @@ class TPReLU(base.Layer):
                  trainable=True,
                  name=None,
                  **kwargs):
-        super(PReLU, self).__init__(
+        super().__init__(
             trainable=trainable,
             name=name,
             activity_regularizer=activity_regularizer,
@@ -1389,9 +1699,9 @@ class TPReLU(base.Layer):
 
     def call(self, inputs, mask=None):
         inputs = ops.convert_to_tensor(inputs, dtype=self.dtype)
-        inputs = nn.bias_add(inputs, -self.bias)
+        inputs = math_ops.add(inputs, -self.bias)
         inputs = math_ops.maximum(self.alpha * inputs, inputs)
-        inputs = nn.bias_add(inputs, self.bias)
+        inputs = math_ops.add(inputs, self.bias)
         return inputs
 
 

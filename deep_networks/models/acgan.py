@@ -8,209 +8,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from . import gan
 from .base import GANModel
+from .blocks import BasicGenerator, BasicDiscriminator
 from ..train import IncrementalAverage
-
-
-class BasicGenerator(gan.BasicGenerator):
-    """BasicGenerator"""
-
-    def __init__(self,
-                 z,
-                 c,
-                 is_training,
-                 output_shape,
-                 num_classes,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 code_regularizer=None,
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 dim=128,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=None):
-        assert num_layers > 0
-
-        with tf.variable_scope(name, reuse=reuse):
-            with tf.variable_scope('codes'):
-                self.codes = tf.get_variable(
-                    'codes', [num_classes, z.get_shape()[1]],
-                    initializer=initializer,
-                    regularizer=code_regularizer)
-                z_c = tf.nn.embedding_lookup(self.codes, c)
-                outputs = tf.multiply(z, z_c)
-
-        super().__init__(
-            z=outputs,
-            is_training=is_training,
-            output_shape=output_shape,
-            updates_collections=updates_collections,
-            initializer=initializer,
-            regularizer=regularizer,
-            name=name,
-            reuse=reuse,
-            dim=dim,
-            num_layers=num_layers,
-            skip_first_batch=skip_first_batch,
-            use_fused_batch_norm=use_fused_batch_norm,
-            activation_fn=activation_fn)
-
-
-class BasicDiscriminator(gan.BasicDiscriminator):
-    pass
-
-
-def build_resize_conv_generator(z,
-                                c,
-                                is_training,
-                                updates_collections,
-                                output_shape,
-                                num_classes,
-                                name='generator',
-                                reuse=False,
-                                min_size=4,
-                                dim=128,
-                                num_layers=3,
-                                skip_first_batch=False,
-                                activation_fn=None):
-    assert num_layers > 0
-    initializer = tf.contrib.layers.xavier_initializer(uniform=False)
-
-    with tf.variable_scope(name, reuse=reuse):
-        with tf.variable_scope('codes'):
-            codes = tf.get_variable(
-                'codes', [num_classes, z.get_shape()[1]],
-                initializer=initializer,
-                regularizer=tf.contrib.layers.l2_regularizer(0.8))
-            z_c = tf.nn.embedding_lookup(codes, c)
-            outputs = tf.multiply(z, z_c)
-
-    outputs = gan.build_resize_conv_generator(
-        z=outputs,
-        is_training=is_training,
-        updates_collections=updates_collections,
-        output_shape=output_shape,
-        name=name,
-        reuse=reuse,
-        min_size=min_size,
-        dim=dim,
-        num_layers=num_layers,
-        skip_first_batch=skip_first_batch,
-        activation_fn=activation_fn)
-    return outputs, codes
-
-
-class ConvTransposeGenerator(gan.ConvTransposeGenerator):
-    """ConvTransposeGenerator"""
-
-    def __init__(self,
-                 z,
-                 c,
-                 is_training,
-                 output_shape,
-                 num_classes,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 code_regularizer=None,
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 min_size=4,
-                 dim=32,
-                 max_dim=64,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=tf.nn.tanh):
-        assert num_layers > 0
-
-        with tf.variable_scope(name, reuse=reuse):
-            with tf.variable_scope('codes'):
-                self.codes = tf.get_variable(
-                    'codes', [num_classes, z.get_shape()[1]],
-                    initializer=initializer,
-                    regularizer=code_regularizer)
-                z_c = tf.nn.embedding_lookup(self.codes, c)
-                outputs = tf.multiply(z, z_c)
-
-        super().__init__(
-            z=outputs,
-            is_training=is_training,
-            output_shape=output_shape,
-            updates_collections=updates_collections,
-            initializer=initializer,
-            regularizer=regularizer,
-            name=name,
-            reuse=reuse,
-            min_size=min_size,
-            dim=dim,
-            max_dim=max_dim,
-            num_layers=num_layers,
-            skip_first_batch=skip_first_batch,
-            use_fused_batch_norm=use_fused_batch_norm,
-            activation_fn=activation_fn)
-
-
-class ResizeConvGenerator(gan.ResizeConvGenerator):
-    """ResizeConvGenerator"""
-
-    def __init__(self,
-                 z,
-                 c,
-                 is_training,
-                 output_shape,
-                 num_classes,
-                 updates_collections=tf.GraphKeys.UPDATE_OPS,
-                 initializer=tf.contrib.layers.xavier_initializer(
-                     uniform=False),
-                 code_regularizer=None,
-                 regularizer=None,
-                 name='generator',
-                 reuse=False,
-                 min_size=4,
-                 dim=32,
-                 max_dim=64,
-                 num_layers=3,
-                 skip_first_batch=False,
-                 use_fused_batch_norm=True,
-                 activation_fn=tf.nn.tanh):
-        assert num_layers > 0
-
-        with tf.variable_scope(name, reuse=reuse):
-            with tf.variable_scope('codes'):
-                self.codes = tf.get_variable(
-                    'codes', [num_classes, z.get_shape()[1]],
-                    initializer=initializer,
-                    regularizer=code_regularizer)
-                z_c = tf.nn.embedding_lookup(self.codes, c)
-                outputs = tf.multiply(z, z_c)
-
-        super().__init__(
-            z=outputs,
-            is_training=is_training,
-            output_shape=output_shape,
-            updates_collections=updates_collections,
-            initializer=initializer,
-            regularizer=regularizer,
-            name=name,
-            reuse=reuse,
-            min_size=min_size,
-            dim=dim,
-            max_dim=max_dim,
-            num_layers=num_layers,
-            skip_first_batch=skip_first_batch,
-            use_fused_batch_norm=use_fused_batch_norm,
-            activation_fn=activation_fn)
-
-
-class ConvDiscriminator(gan.ConvDiscriminator):
-    pass
 
 
 class ACGAN(GANModel):
@@ -222,11 +22,8 @@ class ACGAN(GANModel):
                  num_classes,
                  output_shape,
                  reg_const=5e-5,
-                 code_reg_const=0.8,
                  stddev=None,
                  z_dim=10,
-                 g_dim=32,
-                 d_dim=32,
                  z_stddev=1.,
                  batch_size=128,
                  g_learning_rate=0.0002,
@@ -254,11 +51,9 @@ class ACGAN(GANModel):
             self.z_stddev = z_stddev
             self.z_dim = z_dim
 
-            self.g_dim = g_dim
             self.g_learning_rate = g_learning_rate
             self.g_beta1 = g_beta1
 
-            self.d_dim = d_dim
             self.d_learning_rate = d_learning_rate
             self.d_beta1 = d_beta1
             self.d_label_smooth = d_label_smooth
@@ -281,8 +76,8 @@ class ACGAN(GANModel):
             self.c = tf.placeholder_with_default(self.c, [
                 None,
             ])
-            self.code_regularizer = tf.contrib.layers.l2_regularizer(
-                scale=code_reg_const)
+            self.c_one_hot = tf.one_hot(
+                self.c, depth=self.num_classes, axis=-1)
 
             self._build_GAN(generator_cls, discriminator_cls)
             self._build_losses()
@@ -294,82 +89,63 @@ class ACGAN(GANModel):
 
     def _build_GAN(self, generator_cls, discriminator_cls):
         self.g = generator_cls(
-            z=self.z,
-            c=self.c,
-            is_training=self.is_training,
+            inputs=self.z,
             output_shape=self.output_shape,
-            num_classes=self.num_classes,
-            regularizer=self.regularizer,
+            c=self.c_one_hot,
             initializer=self.initializer,
-            code_regularizer=self.code_regularizer,
-            dim=self.g_dim,
             name='generator')
 
         self.d_real = discriminator_cls(
-            X=self.X,
-            is_training=self.is_training,
+            inputs=self.X,
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
             name='discriminator')
         self.d_fake = discriminator_cls(
-            X=self.g.outputs,
-            is_training=self.is_training,
+            inputs=self.g.activations,
             input_shape=self.output_shape,
             num_classes=self.num_classes,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            dim=self.d_dim,
             reuse=True,
             name='discriminator')
 
-        with tf.variable_scope('generator') as scope:
-            self.g_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
-        with tf.variable_scope('discriminator') as scope:
-            self.d_vars = tf.get_collection(
-                tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope.name)
+        self.g_vars = self.g.get_vars()
+        self.d_vars = self.d_real.get_vars()
 
     def _build_losses(self):
         with tf.variable_scope('generator') as scope:
             self.g_loss = tf.reduce_mean(
                 tf.nn.sigmoid_cross_entropy_with_logits(
-                    logits=self.d_fake.outputs_d,
-                    labels=tf.ones_like(self.d_fake.outputs_d)))
+                    logits=self.d_fake.disc_outputs,
+                    labels=tf.ones_like(self.d_fake.disc_outputs)))
             self.g_c_loss = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(
-                    logits=self.d_fake.outputs_c,
-                    labels=tf.one_hot(self.c, depth=self.num_classes, axis=
-                                      -1)))
+                    logits=self.d_fake.cls_outputs, labels=self.c_one_hot))
 
-            g_reg_ops = tf.get_collection(
-                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.g_reg_loss = tf.add_n(g_reg_ops) if g_reg_ops else 0.0
-
-            self.g_total_loss = self.g_loss + self.g_c_loss + self.g_reg_loss
+            self.g_total_loss = self.g_loss + self.g_c_loss
 
             correct_prediction = tf.equal(
                 tf.cast(self.c, tf.int64),
-                tf.argmax(self.d_fake.activations_c, 1))
+                tf.argmax(self.d_fake.cls_activations, 1))
             self.g_c_accuracy = tf.reduce_mean(
                 tf.cast(correct_prediction, tf.float32))
 
-        with tf.variable_scope('discriminator') as scope:
+        with tf.variable_scope('discriminator'):
             if self.d_label_smooth > 0.0:
                 labels_real = tf.ones_like(
-                    self.d_real.outputs_d) - self.d_label_smooth
+                    self.d_real.disc_outputs) - self.d_label_smooth
             else:
-                labels_real = tf.ones_like(self.d_real.outputs_d)
+                labels_real = tf.ones_like(self.d_real.disc_outputs)
 
             self.d_loss_real = tf.reduce_mean(
                 tf.nn.sigmoid_cross_entropy_with_logits(
-                    logits=self.d_real.outputs_d, labels=labels_real))
+                    logits=self.d_real.disc_outputs, labels=labels_real))
             self.d_loss_fake = tf.reduce_mean(
                 tf.nn.sigmoid_cross_entropy_with_logits(
-                    logits=self.d_fake.outputs_d,
-                    labels=tf.zeros_like(self.d_fake.outputs_d)))
+                    logits=self.d_fake.disc_outputs,
+                    labels=tf.zeros_like(self.d_fake.disc_outputs)))
             self.d_loss = self.d_loss_real + self.d_loss_fake
 
             labels_c_real = tf.one_hot(self.y, depth=self.num_classes, axis=-1)
@@ -380,16 +156,15 @@ class ACGAN(GANModel):
 
             self.d_c_loss = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(
-                    logits=self.d_real.outputs_c, labels=labels_c_real))
+                    logits=self.d_real.cls_outputs, labels=labels_c_real))
 
-            d_reg_ops = tf.get_collection(
-                tf.GraphKeys.REGULARIZATION_LOSSES, scope=scope.name)
-            self.d_reg_loss = tf.add_n(d_reg_ops) if d_reg_ops else 0.0
+            self.d_reg_loss = self.d_real.reg_loss()
 
             self.d_total_loss = self.d_loss + self.d_c_loss + self.d_reg_loss
 
             correct_prediction = tf.equal(
-                tf.cast(self.y, tf.int64), tf.argmax(self.d_real.outputs_c, 1))
+                tf.cast(self.y, tf.int64),
+                tf.argmax(self.d_real.cls_outputs, 1))
             self.d_c_accuracy = tf.reduce_mean(
                 tf.cast(correct_prediction, tf.float32))
 
@@ -400,27 +175,25 @@ class ACGAN(GANModel):
             if self.image_summary:
                 self.g_sum = tf.summary.image('g',
                                               tf.reshape(
-                                                  self.g.outputs,
+                                                  self.g.activations,
                                                   (-1, ) + self.output_shape))
             else:
-                self.g_sum = tf.summary.histogram('g', self.g.outputs)
+                self.g_sum = tf.summary.histogram('g', self.g.activations)
 
             self.g_loss_sum = tf.summary.scalar('g_loss', self.g_loss)
             self.g_c_loss_sum = tf.summary.scalar('g_c_loss', self.g_c_loss)
-            self.g_reg_loss_sum = tf.summary.scalar('g_reg_loss',
-                                                    self.g_reg_loss)
             self.g_total_loss_sum = tf.summary.scalar('g_total_loss',
                                                       self.g_total_loss)
 
-            self.d_real_sum = tf.summary.histogram('d_real',
-                                                   self.d_real.activations_d)
-            self.d_fake_sum = tf.summary.histogram('d_fake',
-                                                   self.d_fake.activations_d)
+            self.d_real_sum = tf.summary.histogram(
+                'd_real', self.d_real.disc_activations)
+            self.d_fake_sum = tf.summary.histogram(
+                'd_fake', self.d_fake.disc_activations)
 
-            self.d_c_real_sum = tf.summary.histogram('d_c_real',
-                                                     self.d_real.activations_c)
-            self.d_c_fake_sum = tf.summary.histogram('d_c_fake',
-                                                     self.d_fake.activations_c)
+            self.d_c_real_sum = tf.summary.histogram(
+                'd_c_real', self.d_real.cls_activations)
+            self.d_c_fake_sum = tf.summary.histogram(
+                'd_c_fake', self.d_fake.cls_activations)
 
             self.d_loss_sum = tf.summary.scalar('d_loss', self.d_loss)
             self.d_loss_real_sum = tf.summary.scalar('d_loss_real',
@@ -429,8 +202,9 @@ class ACGAN(GANModel):
                                                      self.d_loss_fake)
             self.d_c_loss_sum = tf.summary.scalar('d_c_loss', self.d_c_loss)
 
-            self.d_reg_loss_sum = tf.summary.scalar('d_reg_loss',
-                                                    self.d_reg_loss)
+            if self.regularizer is not None:
+                self.d_reg_loss_sum = tf.summary.scalar(
+                    'd_reg_loss', self.d_reg_loss)
             self.d_total_loss_sum = tf.summary.scalar('d_total_loss',
                                                       self.d_total_loss)
 
@@ -438,21 +212,15 @@ class ACGAN(GANModel):
                 tf.get_collection(tf.GraphKeys.SUMMARIES, scope=scope.name))
 
     def _build_optimizer(self):
-        with tf.variable_scope('generator') as scope:
-            update_ops_g = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-            with tf.control_dependencies(update_ops_g):
-                self.g_optim = tf.train.AdamOptimizer(
-                    self.g_learning_rate, beta1=self.g_beta1).minimize(
-                        self.g_total_loss, var_list=self.g_vars)
+        with tf.variable_scope('generator'):
+            self.g_optim = tf.train.AdamOptimizer(
+                self.g_learning_rate, beta1=self.g_beta1).minimize(
+                    self.g_total_loss, var_list=self.g_vars)
 
-        with tf.variable_scope('discriminator') as scope:
-            update_ops_d = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=scope.name)
-            with tf.control_dependencies(update_ops_d + update_ops_g):
-                self.d_optim = tf.train.AdamOptimizer(
-                    self.d_learning_rate, beta1=self.d_beta1).minimize(
-                        self.d_total_loss, var_list=self.d_vars)
+        with tf.variable_scope('discriminator'):
+            self.d_optim = tf.train.AdamOptimizer(
+                self.d_learning_rate, beta1=self.d_beta1).minimize(
+                    self.d_total_loss, var_list=self.d_vars)
 
     def train(self,
               num_epochs,
@@ -528,16 +296,20 @@ class ACGAN(GANModel):
                         g_loss=epoch_g_total_loss.average,
                         d_loss=epoch_d_total_loss.average)
 
+            # Save final checkpoint
+            if checkpoint_dir:
+                self.save(checkpoint_dir, step)
+
     def sample(self, num_samples=None, z=None, c=None):
         if z is not None and c is not None:
             return self.sess.run(
-                self.g.outputs,
+                self.g.activations,
                 feed_dict={self.is_training: False,
                            self.z: z,
                            self.c: c})
         elif num_samples is not None:
             return self.sess.run(
-                self.g.outputs,
+                self.g.activations,
                 feed_dict={
                     self.is_training: False,
                     self.z: self.sample_z(num_samples),
@@ -545,7 +317,7 @@ class ACGAN(GANModel):
                 })
         else:
             return self.sess.run(
-                self.g.outputs, feed_dict={self.is_training: False})
+                self.g.activations, feed_dict={self.is_training: False})
 
     def sample_z(self, num_samples):
         return np.random.normal(0.0, self.z_stddev, (num_samples, self.z_dim))

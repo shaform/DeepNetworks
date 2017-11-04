@@ -21,7 +21,11 @@ import tensorflow as tf
 
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import math_ops
+
+
+def opt_activation(inputs, activation_fn=None, name=None):
+    with ops.name_scope(name, 'Optional_activation', [inputs, activation_fn]):
+        return activation_fn(inputs) if activation_fn else inputs
 
 
 def conv2d_subpixel(inputs, scale=2, data_format='NHWC', name=None):
