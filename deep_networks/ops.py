@@ -1,51 +1,27 @@
+# The ops are modified from TensorFlow ops.
+#
+# The following are the copyright notice from TensorFlow:
+#
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 """Tensor operations"""
 import tensorflow as tf
 
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
-
-
-# will be available in TF 1.4
-def leaky_relu(features, alpha=0.2, name=None):
-    """Compute the Leaky ReLU activation function.
-
-    "Rectifier Nonlinearities Improve Neural Network Acoustic Models"
-    AL Maas, AY Hannun, AY Ng - Proc. ICML, 2013
-    http://web.stanford.edu/~awni/papers/relu_hybrid_icml2013_final.pdf
-
-    Args:
-      features: A `Tensor` representing preactivation values.
-      alpha: Slope of the activation function at x < 0.
-      name: A name for the operation (optional).
-
-    Returns:
-      The activation value.
-    """
-    with ops.name_scope(name, 'LeakyRelu', [features, alpha]):
-        features = ops.convert_to_tensor(features, name='features')
-        alpha = ops.convert_to_tensor(alpha, name='alpha')
-        return math_ops.maximum(alpha * features, features)
-
-
-# will be available in TF 1.4
-def selu(features, name=None):
-    """Scaled Exponential Linear Unit. (Klambauer et al., 2017).
-
-    Arguments:
-        features: A tensor or variable to compute the activation function for.
-
-    Returns:
-      Tensor with the same shape and dtype as `features`.
-
-    References:
-        - [Self-Normalizing Neural Networks](https://arxiv.org/abs/1706.02515)
-    """
-    with ops.name_scope(name, 'ScaledElu', [features]):
-        alpha = 1.6732632423543772848170429916717
-        scale = 1.0507009873554804934193349852946
-        return scale * tf.where(features >= 0.0, features,
-                                alpha * tf.nn.elu(features))
 
 
 def conv2d_subpixel(inputs, scale=2, data_format='NHWC', name=None):

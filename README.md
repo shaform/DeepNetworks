@@ -3,5 +3,5 @@ My implementations of deep neural networks for practice.
 
 ## Requirements
 
-* tensorflow >= 1.1.0rc2
+* tensorflow >= 1.4.0
 * Python 3

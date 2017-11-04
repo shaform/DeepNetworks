@@ -10,8 +10,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
+from tf.nn.ops import leaky_relu
+
 from .base import GANModel
-from ..ops import leaky_relu
 from ..train import IncrementalAverage
 
 

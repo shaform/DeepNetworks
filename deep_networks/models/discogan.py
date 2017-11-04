@@ -5,9 +5,10 @@ import os
 
 import tensorflow as tf
 
+from tf.nn.ops import leaky_relu
+
 from .base import GANModel
 from .gan import BasicGenerator, BasicDiscriminator
-from ..ops import leaky_relu
 from ..train import IncrementalAverage
 
 
