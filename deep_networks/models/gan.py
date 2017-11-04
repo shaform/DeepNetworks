@@ -386,7 +386,7 @@ class ConvDiscriminator(object):
                         kernel_size=(4, 4),
                         stride=(2, 2),
                         padding='SAME',
-                        activation_fn=leaky_relleaky_relu,
+                        activation_fn=leaky_relu,
                         normalizer_fn=layer_normalizer_fn,
                         normalizer_params=layer_normalizer_params,
                         weights_initializer=initializer,
