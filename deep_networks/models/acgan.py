@@ -261,7 +261,10 @@ class ACGAN(GANModel):
                 epoch_d_total_loss = IncrementalAverage()
                 epoch_d_c_accuracy = IncrementalAverage()
                 t = self._trange(
-                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                    start_idx,
+                    num_batches,
+                    desc='Epoch #{}'.format(epoch + 1),
+                    leave=False)
                 for idx in t:
                     (_, _, d_total_loss, d_c_accuracy, g_total_loss,
                      g_c_accuracy, summary_str) = self.sess.run([

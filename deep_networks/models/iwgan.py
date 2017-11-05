@@ -138,13 +138,7 @@ class WGAN(GANModel):
             self.d_loss_fake = tf.reduce_mean(self.d_fake.disc_outputs)
             self.d_loss = self.d_loss_fake - self.d_loss_real
 
-            self.d_grad = tf.gradients(self.d_hat.disc_outputs, [
-                self.X_hat,
-            ])[0]
-
-            self.d_grad_loss = self.d_lambda * tf.reduce_mean(
-                tf.square(
-                    tf.sqrt(tf.reduce_sum(tf.square(self.d_grad), 1)) - 1.0))
+            self.d_grad_loss = self.d_hat.gp_loss(self.d_lambda)
 
             self.d_reg_loss = self.d_real.reg_loss()
 
@@ -274,7 +268,10 @@ class WGAN(GANModel):
                 #        train D
                 #    train G
                 t = self._trange(
-                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                    start_idx,
+                    num_batches,
+                    desc='Epoch #{}'.format(epoch + 1),
+                    leave=False)
                 for idx in t:
                     # initially we train discriminator more
                     if step < initial_steps:

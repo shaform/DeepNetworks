@@ -28,6 +28,13 @@ def opt_activation(inputs, activation_fn=None, name=None):
         return activation_fn(inputs) if activation_fn else inputs
 
 
+def dragan_perturb(inputs, eps, lambda_dra, name=None):
+    with ops.name_scope(name, 'perturb', [inputs, eps]):
+        mean, var = tf.nn.moments(inputs, list(range(len(inputs.shape))))
+        std = tf.sqrt(var)
+        return inputs + lambda_dra * std * eps
+
+
 def conv2d_subpixel(inputs, scale=2, data_format='NHWC', name=None):
     """Sub-pixel convolution operation. (Shi et al., 2017).
 

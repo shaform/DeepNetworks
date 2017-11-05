@@ -362,7 +362,10 @@ class WACGAN(GANModel):
                 #        train D
                 #    train G
                 t = self._trange(
-                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                    start_idx,
+                    num_batches,
+                    desc='Epoch #{}'.format(epoch + 1),
+                    leave=False)
                 for idx in t:
                     # initially we train discriminator more
                     if step < initial_steps:

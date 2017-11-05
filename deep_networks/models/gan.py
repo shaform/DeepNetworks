@@ -202,7 +202,10 @@ class GAN(GANModel):
                 epoch_g_total_loss = IncrementalAverage()
                 epoch_d_total_loss = IncrementalAverage()
                 t = self._trange(
-                    start_idx, num_batches, desc='Epoch #{}'.format(epoch + 1))
+                    start_idx,
+                    num_batches,
+                    desc='Epoch #{}'.format(epoch + 1),
+                    leave=False)
                 for idx in t:
                     (_, _, d_total_loss, g_total_loss,
                      summary_str) = self.sess.run([

@@ -67,7 +67,18 @@ class BaseImageGenerator(BaseGenerator):
         return shape, upsamples
 
 
-class BaseImageDiscriminator(BaseBlock):
+class BaseDiscriminator(BaseBlock):
+    def gp_loss(self, lambda_gp):
+        with tf.name_scope('gp_loss'):
+            grads = tf.gradients(self.disc_outputs, [self.inputs])[0]
+            return lambda_gp * tf.reduce_mean(
+                tf.square(
+                    tf.sqrt(
+                        tf.maximum(tf.reduce_sum(tf.square(grads), 1), 1e-12))
+                    - 1.0))
+
+
+class BaseImageDiscriminator(BaseDiscriminator):
     def compute_downsamples(self, input_shape, min_size, min_dim, max_dim):
         shape = list(input_shape)[:2]
         nb_downsamples = 0

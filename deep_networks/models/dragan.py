@@ -1,5 +1,5 @@
 """
-Wasserstein Generative Adversarial Networks
+Deep Regret Analytic Generative Adversarial Networks
 """
 
 import datetime
@@ -10,10 +10,11 @@ import tensorflow as tf
 
 from .base import GANModel
 from .blocks import BasicGenerator, BasicDiscriminator
+from ..ops import dragan_perturb
 from ..train import IncrementalAverage
 
 
-class WGAN(GANModel):
+class DRAGAN(GANModel):
     def __init__(self,
                  sess,
                  X_real,
@@ -24,18 +25,17 @@ class WGAN(GANModel):
                  z_dim=10,
                  z_stddev=1.,
                  batch_size=128,
-                 g_learning_rate=0.00005,
-                 d_learning_rate=0.00005,
-                 d_clamp_lower=-0.05,
-                 d_clamp_upper=0.05,
-                 d_iters=5,
-                 d_high_iters=100,
-                 d_intial_high_rounds=25,
-                 d_step_high_rounds=500,
+                 g_learning_rate=0.0002,
+                 g_beta1=0.5,
+                 d_learning_rate=0.0002,
+                 d_beta1=0.5,
+                 d_label_smooth=0.25,
+                 lambda_gp=0.5,
+                 lambda_dra=0.5,
                  generator_cls=BasicGenerator,
                  discriminator_cls=BasicDiscriminator,
                  image_summary=False,
-                 name='WGAN'):
+                 name='DRAGAN'):
         with tf.variable_scope(name):
             super().__init__(
                 sess=sess,
@@ -51,16 +51,14 @@ class WGAN(GANModel):
             self.z_dim = z_dim
 
             self.g_learning_rate = g_learning_rate
+            self.g_beta1 = g_beta1
 
             self.d_learning_rate = d_learning_rate
-            self.d_clamp_lower = d_clamp_lower
-            self.d_clamp_upper = d_clamp_upper
-            self.d_iters = d_iters
-            self.d_high_iters = d_high_iters
-            self.d_intial_high_rounds = d_intial_high_rounds
-            self.d_step_high_rounds = d_step_high_rounds
+            self.d_beta1 = d_beta1
+            self.d_label_smooth = d_label_smooth
 
-            self.image_summary = image_summary
+            self.lambda_gp = lambda_gp
+            self.lambda_dra = lambda_dra
 
             self.X = X_real
             self.z = tf.random_normal(
@@ -70,6 +68,13 @@ class WGAN(GANModel):
                 name='z',
                 dtype=tf.float32)
             self.z = tf.placeholder_with_default(self.z, [None, z_dim])
+
+            self.eps_dra = tf.random_uniform(
+                (self.batch_size, 1),
+                minval=-1.0,
+                maxval=1.0,
+                dtype=tf.float32,
+                name='eps_dra')
 
             self._build_GAN(generator_cls, discriminator_cls)
             self._build_losses()
@@ -91,33 +96,58 @@ class WGAN(GANModel):
             input_shape=self.output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            disc_activation_fn=None,
             name='discriminator')
         self.d_fake = discriminator_cls(
             inputs=self.g.activations,
             input_shape=self.output_shape,
             regularizer=self.regularizer,
             initializer=self.initializer,
-            disc_activation_fn=None,
             reuse=True,
             name='discriminator')
+
+        if self.lambda_gp:
+            self.X_hat = dragan_perturb(self.X, self.eps_dra, self.lambda_dra)
+            self.d_hat = discriminator_cls(
+                inputs=self.X_hat,
+                input_shape=self.output_shape,
+                regularizer=self.regularizer,
+                initializer=self.initializer,
+                reuse=True,
+                name='discriminator')
 
         self.g_vars = self.g.get_vars()
         self.d_vars = self.d_real.get_vars()
 
     def _build_losses(self):
         with tf.variable_scope('generator'):
-            self.g_loss = -tf.reduce_mean(self.d_fake.disc_outputs)
-
+            self.g_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=self.d_fake.disc_outputs,
+                    labels=tf.ones_like(self.d_fake.disc_outputs)))
             self.g_total_loss = self.g_loss
 
         with tf.variable_scope('discriminator'):
-            self.d_loss_real = tf.reduce_mean(self.d_real.disc_outputs)
-            self.d_loss_fake = tf.reduce_mean(self.d_fake.disc_outputs)
-            self.d_loss = self.d_loss_fake - self.d_loss_real
+            if self.d_label_smooth > 0.0:
+                labels_real = tf.ones_like(
+                    self.d_real.disc_outputs) - self.d_label_smooth
+            else:
+                labels_real = tf.ones_like(self.d_real.disc_outputs)
+
+            self.d_loss_real = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=self.d_real.disc_outputs, labels=labels_real))
+            self.d_loss_fake = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=self.d_fake.disc_outputs,
+                    labels=tf.zeros_like(self.d_fake.disc_outputs)))
+            self.d_loss = self.d_loss_real + self.d_loss_fake
 
             self.d_reg_loss = self.d_real.reg_loss()
             self.d_total_loss = self.d_loss + self.d_reg_loss
+
+            if self.lambda_gp:
+                self.d_grad_loss = self.d_hat.gp_loss(self.lambda_gp)
+                self.d_total_loss += self.d_grad_loss
 
     def _build_summary(self):
         with tf.variable_scope('summary') as scope:
@@ -153,20 +183,14 @@ class WGAN(GANModel):
 
     def _build_optimizer(self):
         with tf.variable_scope('generator'):
-            self.g_optim = tf.train.RMSPropOptimizer(
-                self.g_learning_rate).minimize(
+            self.g_optim = tf.train.AdamOptimizer(
+                self.g_learning_rate, beta1=self.g_beta1).minimize(
                     self.g_total_loss, var_list=self.g_vars)
 
         with tf.variable_scope('discriminator'):
-            d_clip = [
-                v.assign(
-                    tf.clip_by_value(v, self.d_clamp_lower,
-                                     self.d_clamp_upper)) for v in self.d_vars
-            ]
-            with tf.control_dependencies(d_clip):
-                self.d_optim = tf.train.RMSPropOptimizer(
-                    self.d_learning_rate).minimize(
-                        self.d_total_loss, var_list=self.d_vars)
+            self.d_optim = tf.train.AdamOptimizer(
+                self.d_learning_rate, beta1=self.d_beta1).minimize(
+                    self.d_total_loss, var_list=self.d_vars)
 
     def train(self,
               num_epochs,
@@ -200,79 +224,25 @@ class WGAN(GANModel):
             else:
                 start_epoch = 0
 
-            initial_steps = self.d_high_iters * self.d_intial_high_rounds
-            # steps to free from initial steps
-            passing_steps = initial_steps + (
-                (self.d_step_high_rounds -
-                 (self.d_intial_high_rounds % self.d_step_high_rounds)
-                 ) % self.d_step_high_rounds) * self.d_iters
-            block_steps = self.d_high_iters + (
-                self.d_step_high_rounds - 1) * self.d_iters
             for epoch in range(start_epoch, num_epochs):
                 start_idx = step % num_batches
                 epoch_g_total_loss = IncrementalAverage()
                 epoch_d_total_loss = IncrementalAverage()
-
-                def train_D():
-                    _, d_total_loss = self.sess.run(
-                        [self.d_optim, self.d_total_loss])
-                    epoch_d_total_loss.add(d_total_loss)
-                    return None
-
-                def train_D_G():
-                    # Update generator
-                    _, _, d_total_loss, g_total_loss, summary_str = self.sess.run(
-                        [
-                            self.d_optim, self.g_optim, self.d_total_loss,
-                            self.g_total_loss, self.summary
-                        ])
-                    epoch_d_total_loss.add(d_total_loss)
-                    epoch_g_total_loss.add(g_total_loss)
-                    return summary_str
-
-                # the complicated loop is to achieve the following
-                # with restore capability
-                #
-                # gen_iterations = 0
-                # while True:
-                #    if (gen_iterations < self.d_intial_high_rounds or
-                #        gen_iterations % self.d_step_high_rounds == 0):
-                #        d_iters = self.d_high_iters
-                #    else:
-                #        d_iters = self.d_iters
-                #    for _ in range(d_iters):
-                #        train D
-                #    train G
                 t = self._trange(
                     start_idx,
                     num_batches,
                     desc='Epoch #{}'.format(epoch + 1),
                     leave=False)
                 for idx in t:
-                    # initially we train discriminator more
-                    if step < initial_steps:
-                        if (step + 1) % self.d_high_iters != 0:
-                            summary_str = train_D()
-                        else:
-                            summary_str = train_D_G()
-                    elif step < passing_steps:
-                        passing_step = (step - initial_steps) % self.d_iters
-                        if (passing_step + 1) % self.d_iters != 0:
-                            summary_str = train_D()
-                        else:
-                            summary_str = train_D_G()
-                    else:
-                        block_step = (step - passing_steps) % block_steps
-                        if (block_step + 1) < self.d_high_iters or (
-                                block_step + 1 - self.d_high_iters
-                        ) % self.d_iters != 0:
-                            # train D
-                            summary_str = train_D()
-                        else:
-                            # train G
-                            summary_str = train_D_G()
+                    (_, _, d_total_loss, g_total_loss,
+                     summary_str) = self.sess.run([
+                         self.d_optim, self.g_optim, self.d_total_loss,
+                         self.g_total_loss, self.summary
+                     ])
+                    epoch_d_total_loss.add(d_total_loss)
+                    epoch_g_total_loss.add(g_total_loss)
 
-                    if self.writer and summary_str:
+                    if self.writer:
                         self.writer.add_summary(summary_str, step)
                     step += 1
 

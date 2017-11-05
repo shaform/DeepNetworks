@@ -9,7 +9,7 @@ from ..layers import conv2d_transpose_with_weight_norm
 from ..layers import dense_with_weight_norm
 from ..ops import conv2d_subpixel
 from ..ops import opt_activation
-from .base import BaseBlock
+from .base import BaseDiscriminator
 from .base import BaseGenerator
 from .base import BaseImageDiscriminator
 from .base import BaseImageGenerator
@@ -70,7 +70,7 @@ class BasicGenerator(BaseGenerator):
                 self.log_msg('WN-FC %d', self.output_size)
 
 
-class BasicDiscriminator(BaseBlock):
+class BasicDiscriminator(BaseDiscriminator):
     """BasicDiscriminator
 
     A discriminator with only fully-connected layers.
@@ -90,6 +90,7 @@ class BasicDiscriminator(BaseBlock):
                  name='discriminator',
                  reuse=False):
         assert num_layers > 0
+        self.inputs = inputs
         self.input_shape = input_shape
         self.input_size = functools.reduce(operator.mul, input_shape)
         with tf.variable_scope(name, reuse=reuse) as scope:
@@ -315,6 +316,7 @@ class ConvDiscriminator(BaseImageDiscriminator):
                  cls_activation_fn=tf.nn.softmax,
                  name='discriminator',
                  reuse=False):
+        self.inputs = inputs
         self.input_shape = input_shape
         self.input_size = functools.reduce(operator.mul, input_shape)
         self.num_classes = num_classes
