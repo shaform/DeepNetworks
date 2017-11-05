@@ -9,6 +9,7 @@ from ..layers import conv2d_transpose_with_weight_norm
 from ..layers import dense_with_weight_norm
 from ..ops import conv2d_subpixel
 from ..ops import opt_activation
+from ..ops import std_eps
 from .base import BaseDiscriminator
 from .base import BaseGenerator
 from .base import BaseImageDiscriminator
@@ -100,6 +101,13 @@ class BasicDiscriminator(BaseDiscriminator):
             self.features = []
             for i in range(num_layers - 1):
                 with tf.variable_scope('fc{}'.format(i + 1)):
+                    if i == num_layers - 2:
+                        stds = std_eps(outputs)
+                        stds = tf.tile(stds,
+                                       tf.concat(
+                                           [tf.shape(outputs)[:-1], [1]],
+                                           axis=0))
+                        outputs = tf.concat([outputs, stds], axis=-1)
                     outputs = dense_with_weight_norm(
                         inputs=outputs,
                         units=dim,
@@ -345,6 +353,14 @@ class ConvDiscriminator(BaseImageDiscriminator):
 
             for i, dim in enumerate(downsamples):
                 with tf.variable_scope('conv{}'.format(i + 1)):
+                    if i == len(downsamples) - 1:
+                        stds = std_eps(outputs)
+                        stds = tf.tile(stds,
+                                       tf.concat(
+                                           [tf.shape(outputs)[:-1], [1]],
+                                           axis=0))
+                        outputs = tf.concat([outputs, stds], axis=-1)
+
                     outputs = conv2d_with_weight_norm(
                         inputs=outputs,
                         filters=dim,

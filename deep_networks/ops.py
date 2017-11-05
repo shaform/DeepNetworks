@@ -35,6 +35,16 @@ def dragan_perturb(inputs, eps, lambda_dra, name=None):
         return inputs + lambda_dra * std * eps
 
 
+def std_eps(inputs, axis=0, epsilon=1e-8, name=None):
+    with ops.name_scope(name, 'std', [inputs, axis, epsilon]):
+        return tf.sqrt(
+            tf.reduce_mean(
+                tf.square(inputs - tf.reduce_mean(
+                    inputs, axis=axis, keep_dims=True)),
+                axis=axis,
+                keep_dims=True) + epsilon)
+
+
 def conv2d_subpixel(inputs, scale=2, data_format='NHWC', name=None):
     """Sub-pixel convolution operation. (Shi et al., 2017).
 
