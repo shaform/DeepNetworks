@@ -13,7 +13,7 @@ This repository implements the following:
 * Improved Training of Wasserstein GANs: [paper](https://arxiv.org/abs/1704.00028), [code](https://github.com/igul222/improved_wgan_training)
 * Deep Regret Analytic Generative Adversarial Networks: [paper](https://arxiv.org/abs/1705.07215), [code](https://github.com/kodalinaveen3/DRAGAN)
 * Conditional Image Synthesis With Auxiliary Classifier GANs: [paper](https://arxiv.org/abs/1610.09585)
-* Learning to Discover Cross-Domain Relations with Generative Adversarial Networks: [paper](https://arxiv.org/pdf/1703.05192.pdf), [code](https://github.com/SKTBrain/DiscoGAN)
+* Learning to Discover Cross-Domain Relations with Generative Adversarial Networks: [paper](https://arxiv.org/abs/1703.05192), [code](https://github.com/SKTBrain/DiscoGAN)
 * Minibatch Stat Concatenation: [paper](https://arxiv.org/abs/1710.10196), [code](https://github.com/tkarras/progressive_growing_of_gans)
 
 ## Requirements

@@ -355,9 +355,10 @@ class ConvDiscriminator(BaseImageDiscriminator):
                 with tf.variable_scope('conv{}'.format(i + 1)):
                     if i == len(downsamples) - 1:
                         stds = std_eps(outputs)
+                        stds = tf.reduce_mean(stds, axis=-1, keep_dims=True)
                         stds = tf.tile(stds,
                                        tf.concat(
-                                           [tf.shape(outputs)[:-1], [1]],
+                                           [tf.shape(outputs)[:1], [1, 1, 1]],
                                            axis=0))
                         outputs = tf.concat([outputs, stds], axis=-1)
 
